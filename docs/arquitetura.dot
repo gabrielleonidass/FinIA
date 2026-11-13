@@ -1,0 +1,16 @@
+digraph A {
+  graph [rankdir=TB, fontname="Inter", nodesep=0.5, ranksep=0.45, pad=0.3];
+  node [shape=box, style="rounded,filled", fontname="Inter", fontsize=11, color="#94a3b8", fillcolor="#f8fafc", margin="0.25,0.12"];
+  edge [color="#64748b", fontname="Inter", fontsize=9];
+  user [label="Usuário (navegador / celular)", fillcolor="#ccfbf1"];
+  front [label=<<b>Front-end</b><br/>HTML5 + CSS3 + JavaScript + Chart.js<br/><font point-size="9">resources/static · 12 telas</font>>];
+  ctrl [label=<<b>Controllers (API REST/JSON)</b><br/><font point-size="9">Auth · Dashboard · Transação · Conta · Meta · Orçamento<br/>Simulação · Alerta · Relatório · Família</font>>, fillcolor="#f0fdfa"];
+  srv [label=<<b>Services (regras de negócio)</b><br/><font point-size="9">Usuario · Categorizador (IA) · Importacao · Transacao · Meta<br/>Orcamento · Alerta · Simulacao · Dashboard · Relatorio · Familia</font>>, fillcolor="#f0fdfa"];
+  repo [label=<<b>Repositories (JDBC)</b><br/><font point-size="9">10 repositórios · SQL parametrizado</font>>, fillcolor="#f0fdfa"];
+  db [label=<<b>Banco H2</b> (modo MySQL)<br/><font point-size="9">./data/finia.mv.db · 12 tabelas</font>>, shape=cylinder, fillcolor="#e0f2fe"];
+  exp [label=<<b>Exportação</b><br/><font point-size="9">PdfWriter · XlsxWriter</font>>];
+  user -> front [label=" HTTP"];
+  front -> ctrl [label=" fetch() JSON + cookie de sessão"];
+  ctrl -> srv; srv -> repo; repo -> db [label=" JDBC"]; srv -> exp;
+  subgraph cluster_back { label="Back-end Java 17 (servidor HTTP embutido do JDK)"; fontname="Inter"; fontsize=10; style="rounded,dashed"; color="#0f766e"; ctrl; srv; repo; exp; }
+}
