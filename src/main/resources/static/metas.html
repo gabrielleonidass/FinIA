@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Metas · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="principal">
+    <header id="topo"></header>
+    <main class="conteudo" id="conteudo">
+      <section class="grade g-3">
+        <div class="cartao kpi kpi-destaque"><span class="kpi-rotulo">Capacidade de poupança</span><span class="kpi-valor" id="k-cap">-</span><span class="kpi-extra">média mensal dos últimos 3 meses</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo">Aportes necessários</span><span class="kpi-valor" id="k-aportes">-</span><span class="kpi-extra" id="k-folga"></span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo">Total acumulado</span><span class="kpi-valor" id="k-acum">-</span><span class="kpi-extra" id="k-alvo"></span></div>
+      </section>
+      <div id="aviso-risco"></div>
+      <section>
+        <div class="cartao-cab"><div><h2>Minhas metas</h2><p class="sub">A projeção é recalculada automaticamente sempre que seu padrão de gastos muda.</p></div>
+          <button class="btn btn-primario" id="btn-nova"></button></div>
+        <div class="grade g-3" id="lista"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<dialog id="m-meta" aria-labelledby="t-meta">
+  <form id="form-meta">
+    <div class="modal-cab"><h2 id="t-meta">Nova meta</h2><button type="button" class="fechar" data-fechar aria-label="Fechar">×</button></div>
+    <div class="modal-corpo form-grade">
+      <input type="hidden" name="id">
+      <div class="campo cheio"><label for="m-nome">Nome da meta</label><input id="m-nome" name="nome" required placeholder="Ex.: Reserva de emergência"></div>
+      <div class="campo"><label for="m-alvo">Valor-alvo (R$)</label><input id="m-alvo" name="valorAlvo" inputmode="decimal" required></div>
+      <div class="campo"><label for="m-acum">Já guardado (R$)</label><input id="m-acum" name="valorAcumulado" inputmode="decimal" placeholder="0,00"></div>
+      <div class="campo"><label for="m-prazo">Prazo desejado</label><input id="m-prazo" name="dataLimite" type="date" required></div>
+      <div class="campo"><label for="m-taxa">Rendimento esperado (% a.m.)</label><input id="m-taxa" name="taxaRendimentoMensal" inputmode="decimal" placeholder="opcional"></div>
+      <div class="cheio aviso aviso-ok" id="m-sim" aria-live="polite">Preencha valor e prazo para simular o aporte mensal.</div>
+    </div>
+    <div class="modal-rodape"><button type="button" class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-primario">Salvar meta</button></div>
+  </form>
+</dialog>
+
+<dialog id="m-aporte" aria-labelledby="t-aporte">
+  <form id="form-aporte">
+    <div class="modal-cab"><h2 id="t-aporte">Registrar aporte</h2><button type="button" class="fechar" data-fechar aria-label="Fechar">×</button></div>
+    <div class="modal-corpo"><input type="hidden" name="id">
+      <div class="campo"><label for="a-valor">Valor (R$)</label><input id="a-valor" name="valor" inputmode="decimal" required></div></div>
+    <div class="modal-rodape"><button type="button" class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-primario">Registrar</button></div>
+  </form>
+</dialog>
+
+<script src="/js/app.js"></script>
+<script>
+  const F = FinIA;
+  let metas = [];
+  document.getElementById('btn-nova').innerHTML = F.icone('mais') + ' Nova meta';
+
+  async function carregar() {
+    const d = await F.get('/api/metas');
+    metas = d.metas;
+    const andamento = metas.filter(m => m.status === 'ATIVA' || m.status === 'EM_RISCO');
+    const aportes = andamento.reduce((s, m) => s + m.aporteMensal, 0);
+    document.getElementById('k-cap').textContent = F.moeda(d.capacidadeMensal);
+    document.getElementById('k-aportes').textContent = F.moeda(aportes);
+    const folga = d.capacidadeMensal - aportes;
+    document.getElementById('k-folga').innerHTML = folga >= 0 ? `<span class="pos">Sobram ${F.moeda(folga)} por mês</span>` : `<span class="neg">Faltam ${F.moeda(-folga)} por mês</span>`;
+    document.getElementById('k-acum').textContent = F.moeda(andamento.reduce((s, m) => s + m.valorAcumulado, 0));
+    document.getElementById('k-alvo').textContent = 'de ' + F.moeda(andamento.reduce((s, m) => s + m.valorAlvo, 0)) + ' nas metas em andamento';
+    const risco = metas.filter(m => m.status === 'EM_RISCO');
+    document.getElementById('aviso-risco').innerHTML = risco.length ? `<div class="aviso aviso-alerta">${F.icone('alerta')}<span>
+      <strong>${risco.map(m => F.esc(m.nome)).join(', ')}</strong> ${risco.length > 1 ? 'estão' : 'está'} em risco: o aporte necessário supera sua capacidade de poupança atual.
+      Experimente a <a href="/simulacao">simulação "E se"</a> para ver como cortar gastos antecipa suas metas.</span></div>` : '';
+
+    document.getElementById('lista').innerHTML = metas.map(m => {
+      const [rot, cls] = F.rotuloStatusMeta[m.status];
+      const barra = m.status === 'EM_RISCO' ? 'perigo' : (m.status === 'PAUSADA' || m.status === 'CANCELADA') ? 'pausa' : '';
+      const fechada = m.status === 'CANCELADA' || m.status === 'CONCLUIDA';
+      return `<article class="cartao meta-cartao" ${m.status === 'CANCELADA' ? 'style="opacity:.6"' : ''}>
+        <div class="meta-topo"><div><h3>${F.esc(m.nome)}</h3><span class="sub">até ${F.data(m.dataLimite)}${m.taxaRendimentoMensal ? ' · rende ' + String(m.taxaRendimentoMensal).replace('.', ',') + '% a.m.' : ''}</span></div>
+          <span class="badge ${cls}">${rot}</span></div>
+        <div><div class="barra ${barra}" role="progressbar" aria-label="Progresso" aria-valuenow="${m.percentual}" aria-valuemin="0" aria-valuemax="100"><span style="width:${m.percentual}%"></span></div>
+          <div class="meta-valores" style="margin-top:6px"><span><strong>${F.moeda(m.valorAcumulado)}</strong> de ${F.moeda(m.valorAlvo)}</span><strong>${m.percentual}%</strong></div></div>
+        <div class="meta-info">
+          <div><span>Aporte/mês</span><strong>${fechada ? '-' : F.moeda(m.aporteMensal)}</strong></div>
+          <div><span>Meses</span><strong>${fechada ? '-' : m.mesesRestantes}</strong></div>
+          <div><span>Falta</span><strong>${F.moeda(Math.max(0, m.valorAlvo - m.valorAcumulado))}</strong></div>
+        </div>
+        ${m.status === 'CANCELADA' ? '' : `<div class="acoes">
+          ${m.status !== 'CONCLUIDA' ? `<button class="btn btn-primario btn-pequeno" data-aportar="${m.id}">${F.icone('mais')} Aporte</button>` : ''}
+          <button class="btn btn-sec btn-pequeno" data-editar="${m.id}">Editar</button>
+          ${m.status === 'PAUSADA' ? `<button class="btn btn-sec btn-pequeno" data-status="ATIVA" data-id="${m.id}">Retomar</button>`
+            : m.status !== 'CONCLUIDA' ? `<button class="btn btn-sec btn-pequeno" data-status="PAUSADA" data-id="${m.id}">Pausar</button>` : ''}
+          ${m.status !== 'CONCLUIDA' ? `<button class="btn btn-perigo btn-pequeno" data-status="CANCELADA" data-id="${m.id}">Cancelar</button>` : ''}
+        </div>`}
+      </article>`;
+    }).join('');
+  }
+
+  async function simular() {
+    const f = document.getElementById('form-meta');
+    const out = document.getElementById('m-sim');
+    if (!f.valorAlvo.value || !f.dataLimite.value) return;
+    try {
+      const r = await F.post('/api/metas/simular', F.dadosForm(f));
+      out.className = 'cheio aviso aviso-ok';
+      out.innerHTML = `${F.icone('info')}<span>Para chegar lá em <strong>${r.meses} meses</strong>, guarde <strong>${F.moeda(r.aporteMensal)} por mês</strong>.</span>`;
+    } catch (e) { out.className = 'cheio aviso aviso-erro'; out.textContent = e.message; }
+  }
+  document.getElementById('form-meta').addEventListener('input', () => { clearTimeout(window._s); window._s = setTimeout(simular, 300); });
+
+  function abrirForm(m) {
+    const f = document.getElementById('form-meta');
+    f.reset();
+    document.getElementById('t-meta').textContent = m ? 'Editar meta' : 'Nova meta';
+    document.getElementById('m-sim').innerHTML = 'Preencha valor e prazo para simular o aporte mensal.';
+    f.id.value = m ? m.id : '';
+    if (m) { f.nome.value = m.nome; f.valorAlvo.value = m.valorAlvo; f.valorAcumulado.value = m.valorAcumulado; f.dataLimite.value = m.dataLimite; f.taxaRendimentoMensal.value = m.taxaRendimentoMensal || ''; simular(); }
+    F.abrirModal('m-meta');
+  }
+  document.getElementById('btn-nova').onclick = () => abrirForm(null);
+
+  document.getElementById('lista').addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    try {
+      if (b.dataset.editar) abrirForm(metas.find(m => m.id == b.dataset.editar));
+      if (b.dataset.aportar) { const f = document.getElementById('form-aporte'); f.reset(); f.id.value = b.dataset.aportar; F.abrirModal('m-aporte'); }
+      if (b.dataset.status) {
+        if (b.dataset.status === 'CANCELADA' && !confirm('Cancelar esta meta? Esta ação não pode ser desfeita.')) return;
+        await F.post(`/api/metas/${b.dataset.id}/status`, { status: b.dataset.status });
+        F.toast('Meta atualizada.'); carregar();
+      }
+    } catch (err) { F.toast(err.message, true); }
+  });
+
+  document.getElementById('form-meta').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = F.dadosForm(e.target);
+    try {
+      if (d.id) await F.put('/api/metas/' + d.id, d); else await F.post('/api/metas', d);
+      F.fecharModal('m-meta'); F.toast('Meta salva.'); carregar();
+    } catch (err) { F.toast(err.message, true); }
+  });
+
+  document.getElementById('form-aporte').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = F.dadosForm(e.target);
+    try { await F.post(`/api/metas/${d.id}/aporte`, d); F.fecharModal('m-aporte'); F.toast('Aporte registrado.'); carregar(); }
+    catch (err) { F.toast(err.message, true); }
+  });
+
+  F.iniciar('metas', 'Metas financeiras', 'Planejamento com simulação do aporte mensal').then(carregar);
+</script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visão geral · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="principal">
+    <header id="topo"></header>
+    <main class="conteudo" id="conteudo">
+      <div class="cartao-cab" style="margin:0">
+        <div>
+          <h2 id="saudacao">Olá!</h2>
+          <p class="sub" id="periodo-rotulo"></p>
+        </div>
+        <div class="filtros">
+          <div class="segmentado" role="group" aria-label="Período">
+            <button data-p="mes" aria-pressed="true">Mês atual</button>
+            <button data-p="3m" aria-pressed="false">3 meses</button>
+            <button data-p="12m" aria-pressed="false">12 meses</button>
+            <button data-p="custom" aria-pressed="false">Personalizado</button>
+          </div>
+          <div id="custom" hidden style="display:flex;gap:6px">
+            <input type="date" id="ini" aria-label="Início"><input type="date" id="fim" aria-label="Fim">
+            <button class="btn btn-sec btn-pequeno" id="aplicar">Aplicar</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="aviso-revisao"></div>
+
+      <section class="grade g-4" aria-label="Indicadores">
+        <div class="cartao kpi kpi-destaque"><span class="kpi-rotulo">Saldo total consolidado</span><span class="kpi-valor" id="k-saldo">-</span><span class="kpi-extra" id="k-contas"></span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo"><span class="ponto" style="background:#16a34a"></span>Receitas</span><span class="kpi-valor" id="k-rec">-</span><span class="kpi-extra">no período</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo"><span class="ponto" style="background:#ef4444"></span>Despesas</span><span class="kpi-valor" id="k-desp">-</span><span class="kpi-extra">no período</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo">Resultado</span><span class="kpi-valor" id="k-res">-</span><span class="kpi-extra" id="k-res-extra"></span></div>
+      </section>
+
+      <section class="grade g-21">
+        <div class="cartao">
+          <div class="cartao-cab"><div><h2>Receitas x despesas</h2><p>Evolução mensal</p></div></div>
+          <div class="graf"><canvas id="g-evolucao" role="img" aria-label="Gráfico de barras de receitas e despesas por mês"></canvas></div>
+        </div>
+        <div class="cartao">
+          <div class="cartao-cab"><div><h2>Gastos por categoria</h2><p id="cat-total"></p></div></div>
+          <div class="graf-peq"><canvas id="g-categorias" role="img" aria-label="Gráfico de rosca dos gastos por categoria"></canvas></div>
+          <ul class="lista" id="cat-lista" style="margin-top:10px"></ul>
+        </div>
+      </section>
+
+      <section class="grade g-3">
+        <div class="cartao">
+          <div class="cartao-cab"><div><h2>Saldo por conta</h2><p>Consolidado de todas as instituições</p></div><a href="/contas" class="btn-link">Gerenciar</a></div>
+          <ul class="lista" id="contas"></ul>
+        </div>
+        <div class="cartao">
+          <div class="cartao-cab"><div><h2>Metas ativas</h2><p>Progresso atual</p></div><a href="/metas" class="btn-link">Ver todas</a></div>
+          <div id="metas" style="display:flex;flex-direction:column;gap:14px"></div>
+        </div>
+        <div class="cartao">
+          <div class="cartao-cab"><div><h2>Alertas recentes</h2><p>Notificações inteligentes</p></div><a href="/alertas" class="btn-link">Ver todos</a></div>
+          <ul class="lista" id="alertas"></ul>
+        </div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-cab"><div><h2>Últimas transações</h2><p>Categorizadas automaticamente</p></div><a href="/transacoes" class="btn-link">Ver extrato completo</a></div>
+        <div class="tabela-wrap"><table>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Confiança</th><th class="num">Valor</th></tr></thead>
+          <tbody id="ultimas"></tbody>
+        </table></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="/js/chart.umd.min.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  const F = FinIA;
+  let periodo = 'mes', gEvo, gCat;
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.color = '#475569';
+
+  async function carregar() {
+    let url = '/api/dashboard?periodo=' + periodo;
+    if (periodo === 'custom') url += '&inicio=' + document.getElementById('ini').value + '&fim=' + document.getElementById('fim').value;
+    let d;
+    try { d = await F.get(url); } catch (e) { F.toast(e.message, true); return; }
+
+    document.getElementById('periodo-rotulo').textContent = `${d.periodo.rotulo}: ${F.data(d.periodo.inicio)} a ${F.data(d.periodo.fim)}`;
+    document.getElementById('k-saldo').textContent = F.moeda(d.saldoTotal);
+    document.getElementById('k-contas').textContent = d.contas.length + ' contas conectadas';
+    document.getElementById('k-rec').textContent = F.moeda(d.receitas);
+    document.getElementById('k-desp').textContent = F.moeda(d.despesas);
+    const res = document.getElementById('k-res');
+    res.textContent = F.moeda(d.resultado);
+    res.className = 'kpi-valor ' + (d.resultado >= 0 ? 'pos' : 'neg');
+    document.getElementById('k-res-extra').textContent = d.receitas > 0 ? `${Math.round(d.resultado / d.receitas * 100)}% da receita poupada` : '';
+
+    document.getElementById('aviso-revisao').innerHTML = d.pendentesRevisao > 0
+      ? `<div class="aviso aviso-alerta">${F.icone('alerta')}<span><strong>${d.pendentesRevisao} transações</strong> com categorização incerta aguardam sua revisão.
+         <a href="/transacoes?status=INCERTA">Revisar agora</a></span></div>` : '';
+
+    // gráfico de evolução
+    if (gEvo) gEvo.destroy();
+    gEvo = new Chart(document.getElementById('g-evolucao'), {
+      type: 'bar',
+      data: {
+        labels: d.evolucao.map(e => F.mesCurto(e.mes)),
+        datasets: [
+          { label: 'Receitas', data: d.evolucao.map(e => e.receitas), backgroundColor: '#14b8a6', borderRadius: 6, maxBarThickness: 26 },
+          { label: 'Despesas', data: d.evolucao.map(e => e.despesas), backgroundColor: '#f87171', borderRadius: 6, maxBarThickness: 26 },
+        ],
+      },
+      options: { maintainAspectRatio: false, animation: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + F.moeda(c.raw) } } },
+        scales: { y: { ticks: { callback: v => 'R$ ' + (v / 1000).toLocaleString('pt-BR') + 'k' }, grid: { color: '#eef2f6' } }, x: { grid: { display: false } } } },
+    });
+
+    // gráfico de categorias
+    const total = d.categorias.reduce((s, c) => s + c.total, 0);
+    document.getElementById('cat-total').textContent = 'Total: ' + F.moeda(total);
+    if (gCat) gCat.destroy();
+    gCat = new Chart(document.getElementById('g-categorias'), {
+      type: 'doughnut',
+      data: { labels: d.categorias.map(c => c.categoria), datasets: [{ data: d.categorias.map(c => c.total), backgroundColor: d.categorias.map(c => c.cor), borderWidth: 2, borderColor: '#fff' }] },
+      options: { maintainAspectRatio: false, animation: false, cutout: '68%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.label + ': ' + F.moeda(c.raw) } } } },
+    });
+    document.getElementById('cat-lista').innerHTML = d.categorias.slice(0, 5).map(c => `
+      <li style="padding:6px 0"><span class="ponto" style="background:${c.cor}"></span><span style="flex:1">${F.esc(c.categoria)}</span>
+      <span class="sub">${total ? Math.round(c.total / total * 100) : 0}%</span><strong class="num" style="min-width:96px">${F.moeda(c.total)}</strong></li>`).join('');
+
+    document.getElementById('contas').innerHTML = d.contas.map(c => `
+      <li><span class="icone-circ" style="background:#f0fdfa;color:#0f766e">${F.icone(c.tipo.startsWith('Cart') ? 'cartao' : c.tipo === 'Poupança' ? 'porco' : 'banco')}</span>
+      <span style="flex:1;min-width:0"><span class="desc">${F.esc(c.apelido)}</span>${c.ativa ? '' : ' <span class="badge b-neutro">desativada</span>'}<br><span class="sub">${F.esc(c.instituicao)} · ${c.tipo}</span></span>
+      <strong class="num ${c.saldo < 0 ? 'neg' : ''}">${F.moeda(c.saldo)}</strong></li>`).join('');
+
+    const metas = d.metas.filter(m => m.status === 'ATIVA' || m.status === 'EM_RISCO');
+    document.getElementById('metas').innerHTML = metas.length ? metas.map(m => `
+      <div><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px"><span class="desc">${F.esc(m.nome)}</span>
+      <span class="badge ${F.rotuloStatusMeta[m.status][1]}">${F.rotuloStatusMeta[m.status][0]}</span></div>
+      <div class="barra ${m.status === 'EM_RISCO' ? 'perigo' : ''}" role="progressbar" aria-valuenow="${m.percentual}" aria-valuemin="0" aria-valuemax="100"><span style="width:${m.percentual}%"></span></div>
+      <div class="meta-valores" style="margin-top:5px"><span>${F.moeda(m.valorAcumulado)} de ${F.moeda(m.valorAlvo)}</span><span>${m.percentual}%</span></div></div>`).join('')
+      : '<div class="vazio">Nenhuma meta ativa.</div>';
+
+    document.getElementById('alertas').innerHTML = d.alertas.length ? d.alertas.map(a => {
+      const [bg, cor, ic] = F.corAlerta[a.tipo];
+      return `<li style="align-items:flex-start"><span class="icone-circ" style="background:${bg};color:${cor}">${F.icone(ic)}</span>
+      <span style="flex:1"><strong style="font-size:.84rem">${a.tipoRotulo}</strong><br><span class="sub" style="font-size:.8rem">${F.esc(a.mensagem)}</span></span></li>`;
+    }).join('') : '<div class="vazio">Nenhum alerta.</div>';
+
+    document.getElementById('ultimas').innerHTML = d.ultimasTransacoes.map(t => linhaTransacao(t)).join('');
+  }
+
+  function linhaTransacao(t) {
+    const incerta = t.status === 'INCERTA';
+    return `<tr class="${incerta ? 'linha-incerta' : ''}"><td>${F.data(t.data)}</td>
+      <td><span class="desc">${F.esc(t.descricao)}</span><br><span class="sub">${F.esc(t.conta)}</span></td>
+      <td><span class="badge b-neutro"><span class="ponto" style="background:${t.cor}"></span>${F.esc(t.categoria)}</span></td>
+      <td>${incerta ? `<span class="badge b-alerta">${t.confianca}% · incerta</span>` : `<span class="sub">${t.confianca}%</span>`}</td>
+      <td class="num ${t.tipo === 'DESPESA' ? 'neg' : 'pos'}">${t.tipo === 'DESPESA' ? '-' : '+'} ${F.moeda(t.valor)}</td></tr>`;
+  }
+
+  document.querySelectorAll('.segmentado button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.segmentado button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    periodo = b.dataset.p;
+    const custom = document.getElementById('custom');
+    custom.hidden = periodo !== 'custom';
+    custom.style.display = periodo === 'custom' ? 'flex' : 'none';
+    if (periodo !== 'custom') carregar();
+  });
+  document.getElementById('aplicar').onclick = carregar;
+  document.getElementById('custom').style.display = 'none';
+
+  F.iniciar('dashboard', 'Visão geral').then(u => {
+    const h = new Date().getHours();
+    document.getElementById('saudacao').textContent = (h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite') + ', ' + u.nome.split(' ')[0] + '!';
+    carregar();
+  });
+</script>
+</body>
+</html>

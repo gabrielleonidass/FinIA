@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transações · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="principal">
+    <header id="topo"></header>
+    <main class="conteudo" id="conteudo">
+      <section class="grade g-4">
+        <div class="cartao kpi"><span class="kpi-rotulo">Lançamentos</span><span class="kpi-valor" id="k-total">-</span><span class="kpi-extra">no filtro atual</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo"><span class="ponto" style="background:#16a34a"></span>Entradas</span><span class="kpi-valor pos" id="k-ent">-</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo"><span class="ponto" style="background:#ef4444"></span>Saídas</span><span class="kpi-valor neg" id="k-sai">-</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo"><span class="ponto" style="background:#f59e0b"></span>Para revisar</span><span class="kpi-valor" id="k-inc">-</span><span class="kpi-extra">confiança abaixo de 70%</span></div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-cab">
+          <div><h2>Extrato</h2><p>A IA sugere a categoria de cada lançamento. Altere quando necessário: o FinIA aprende com você.</p></div>
+          <div class="acoes">
+            <button class="btn btn-sec" id="btn-nova">Lançamento manual</button>
+            <button class="btn btn-primario" id="btn-importar"></button>
+          </div>
+        </div>
+        <form class="filtros" id="filtros" style="margin-bottom:14px">
+          <div class="campo"><label for="f-periodo">Período</label>
+            <select id="f-periodo" name="periodo"><option value="mes" selected>Mês atual</option><option value="3m">Últimos 3 meses</option><option value="12m">Últimos 12 meses</option><option value="todos">Tudo</option></select></div>
+          <div class="campo"><label for="f-conta">Conta</label><select id="f-conta" name="conta"><option value="">Todas</option></select></div>
+          <div class="campo"><label for="f-cat">Categoria</label><select id="f-cat" name="categoria"><option value="">Todas</option></select></div>
+          <div class="campo"><label for="f-status">Situação</label>
+            <select id="f-status" name="status"><option value="">Todas</option><option value="INCERTA">Categorização incerta</option><option value="CATEGORIZADA">Categorizada pela IA</option><option value="RECLASSIFICADA">Revisada por mim</option></select></div>
+          <div class="campo" style="flex:1;min-width:200px"><label for="f-busca">Buscar</label><input id="f-busca" name="busca" placeholder="Ex.: uber, mercado..."></div>
+        </form>
+        <div class="tabela-wrap"><table>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Confiança da IA</th><th class="num">Valor</th><th><span class="sr-only">Ações</span></th></tr></thead>
+          <tbody id="lista"></tbody>
+        </table></div>
+      </section>
+
+      <section class="grade g-2">
+        <div class="cartao">
+          <div class="cartao-cab"><div><h2>Regras automáticas</h2><p>Estabelecimentos que sempre vão para a mesma categoria</p></div></div>
+          <ul class="lista" id="regras"></ul>
+        </div>
+        <div class="cartao">
+          <div class="cartao-cab"><div><h2>Histórico de reclassificações</h2><p>Auditoria usada para retreinar o modelo</p></div></div>
+          <div class="tabela-wrap"><table><thead><tr><th>Quando</th><th>Estabelecimento</th><th>De → Para</th></tr></thead><tbody id="historico"></tbody></table></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<dialog id="m-importar" aria-labelledby="t-importar">
+  <form id="form-importar">
+    <div class="modal-cab"><h2 id="t-importar">Importar extrato</h2><button type="button" class="fechar" data-fechar aria-label="Fechar">×</button></div>
+    <div class="modal-corpo">
+      <div class="campo"><label for="i-conta">Conta de destino</label><select id="i-conta" name="contaId" required></select></div>
+      <div class="campo"><label for="i-arquivo">Arquivo CSV ou OFX</label><input type="file" id="i-arquivo" accept=".csv,.ofx" required>
+        <span class="dica">CSV no formato <code>data;descricao;valor</code> (despesas com valor negativo). <a href="/exemplo-extrato.csv" download>Baixar modelo</a></span></div>
+      <div id="i-resultado"></div>
+    </div>
+    <div class="modal-rodape"><button type="button" class="btn btn-sec" data-fechar>Fechar</button><button class="btn btn-primario" id="i-btn">Importar</button></div>
+  </form>
+</dialog>
+
+<dialog id="m-nova" aria-labelledby="t-nova">
+  <form id="form-nova">
+    <div class="modal-cab"><h2 id="t-nova">Novo lançamento manual</h2><button type="button" class="fechar" data-fechar aria-label="Fechar">×</button></div>
+    <div class="modal-corpo form-grade">
+      <div class="campo cheio"><label for="n-desc">Descrição</label><input id="n-desc" name="descricao" required placeholder="Ex.: PADARIA PAO QUENTE"></div>
+      <div class="campo"><label for="n-valor">Valor (R$)</label><input id="n-valor" name="valor" required inputmode="decimal" placeholder="0,00"></div>
+      <div class="campo"><label for="n-data">Data</label><input id="n-data" name="data" type="date" required></div>
+      <div class="campo"><label for="n-tipo">Tipo</label><select id="n-tipo" name="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></div>
+      <div class="campo"><label for="n-conta">Conta</label><select id="n-conta" name="contaId"></select></div>
+      <p class="sub cheio" style="margin:0">A categoria será sugerida automaticamente pela IA.</p>
+    </div>
+    <div class="modal-rodape"><button type="button" class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-primario">Salvar</button></div>
+  </form>
+</dialog>
+
+<dialog id="m-regra" aria-labelledby="t-regra">
+  <div class="modal-cab"><h2 id="t-regra">Criar regra automática?</h2><button type="button" class="fechar" data-fechar aria-label="Fechar">×</button></div>
+  <div class="modal-corpo"><p id="regra-texto" style="margin:0"></p></div>
+  <div class="modal-rodape"><button class="btn btn-sec" data-fechar>Agora não</button><button class="btn btn-primario" id="regra-criar">Criar regra</button></div>
+</dialog>
+
+<script src="/js/app.js"></script>
+<script>
+  const F = FinIA;
+  let cats = [], contas = [];
+  document.getElementById('btn-nova').innerHTML = F.icone('mais') + ' Lançamento manual';
+  document.getElementById('btn-importar').innerHTML = F.icone('upload') + ' Importar extrato';
+
+  async function carregar() {
+    const p = new URLSearchParams(F.dadosForm(document.getElementById('filtros')));
+    const d = await F.get('/api/transacoes?' + p);
+    document.getElementById('k-total').textContent = d.total;
+    document.getElementById('k-ent').textContent = F.moeda(d.entradas);
+    document.getElementById('k-sai').textContent = F.moeda(d.saidas);
+    document.getElementById('k-inc').textContent = d.incertas;
+    document.getElementById('lista').innerHTML = d.transacoes.length ? d.transacoes.map(t => {
+      const incerta = t.status === 'INCERTA';
+      const conf = incerta ? `<span class="badge b-alerta">${F.icone('alerta', 'width=13 height=13')} ${t.confianca}% · incerta</span>`
+        : t.status === 'RECLASSIFICADA' ? `<span class="badge b-info">${F.icone('check', 'width=13 height=13')} revisada</span>`
+        : `<span class="badge b-ok">${t.confianca}%</span>`;
+      return `<tr class="${incerta ? 'linha-incerta' : ''}">
+        <td>${F.data(t.data)}</td>
+        <td><span class="desc">${F.esc(t.descricao)}</span><br><span class="sub">${F.esc(t.conta)} · ${t.origem.replace('_', ' ').toLowerCase()}</span></td>
+        <td><select class="cat-select" data-id="${t.id}" aria-label="Categoria de ${F.esc(t.descricao)}" style="border-left:4px solid ${t.cor}">${F.opcoesCategorias(cats, t.categoriaId)}</select></td>
+        <td>${conf}</td>
+        <td class="num ${t.tipo === 'DESPESA' ? 'neg' : 'pos'}">${t.tipo === 'DESPESA' ? '-' : '+'} ${F.moeda(t.valor)}</td>
+        <td>${incerta ? `<button class="btn btn-sec btn-pequeno" data-confirmar="${t.id}">Confirmar</button>` : ''}</td></tr>`;
+    }).join('') : '<tr><td colspan="6" class="vazio">Nenhuma transação encontrada para os filtros.</td></tr>';
+  }
+
+  async function carregarRegras() {
+    const d = await F.get('/api/regras');
+    document.getElementById('regras').innerHTML = d.regras.length ? d.regras.map(r => `
+      <li><span class="icone-circ" style="background:#f0fdfa;color:#0f766e">${F.icone('raio')}</span>
+      <span style="flex:1"><span class="desc">${F.esc(r.padrao)}</span><br><span class="sub">sempre em ${F.esc(r.categoria)}</span></span>
+      <button class="btn btn-perigo btn-pequeno" data-remover-regra="${r.id}">Remover</button></li>`).join('')
+      : '<div class="vazio">Nenhuma regra. Elas são sugeridas após 3 correções iguais do mesmo estabelecimento.</div>';
+    document.getElementById('historico').innerHTML = d.historico.length ? d.historico.map(h => `
+      <tr><td class="sub">${F.dataHora(h.dataHora)}</td><td>${F.esc(h.padrao)}</td><td>${F.esc(h.anterior)} → <strong>${F.esc(h.nova)}</strong></td></tr>`).join('')
+      : '<tr><td colspan="3" class="vazio">Sem reclassificações.</td></tr>';
+  }
+
+  let sugestao = null;
+  function tratarResposta(r, msg) {
+    F.toast(msg);
+    if (r.sugerirRegra) {
+      sugestao = r;
+      document.getElementById('regra-texto').innerHTML = `Você classificou <strong>${F.esc(r.padrao)}</strong> como <strong>${F.esc(r.categoria)}</strong> três vezes seguidas. Deseja que o FinIA faça isso automaticamente daqui em diante?`;
+      F.abrirModal('m-regra');
+    }
+    carregar(); carregarRegras();
+  }
+
+  document.getElementById('lista').addEventListener('change', async (e) => {
+    const sel = e.target.closest('select[data-id]');
+    if (!sel) return;
+    try {
+      const r = await F.put(`/api/transacoes/${sel.dataset.id}/categoria`, { categoriaId: Number(sel.value) });
+      tratarResposta(r, `Categoria alterada para ${r.categoria}. Dashboards e relatórios atualizados.`);
+    } catch (err) { F.toast(err.message, true); }
+  });
+
+  document.getElementById('lista').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-confirmar]');
+    if (!b) return;
+    const r = await F.post(`/api/transacoes/${b.dataset.confirmar}/confirmar`);
+    tratarResposta(r, `Categoria ${r.categoria} confirmada.`);
+  });
+
+  document.getElementById('regras').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-remover-regra]');
+    if (!b) return;
+    await F.del('/api/regras/' + b.dataset.removerRegra);
+    F.toast('Regra removida.');
+    carregarRegras();
+  });
+
+  document.getElementById('regra-criar').onclick = async () => {
+    const r = await F.post('/api/regras', { padrao: sugestao.padrao, categoriaId: sugestao.categoriaId });
+    F.fecharModal('m-regra');
+    F.toast(`Regra criada para ${r.padrao} (${r.transacoesAtualizadas} transações atualizadas).`);
+    carregar(); carregarRegras();
+  };
+
+  document.getElementById('filtros').addEventListener('input', () => { clearTimeout(window._t); window._t = setTimeout(carregar, 250); });
+  document.getElementById('btn-importar').onclick = () => { document.getElementById('i-resultado').innerHTML = ''; F.abrirModal('m-importar'); };
+  document.getElementById('btn-nova').onclick = () => { document.getElementById('n-data').value = new Date().toISOString().substring(0, 10); F.abrirModal('m-nova'); };
+
+  document.getElementById('form-importar').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const arq = document.getElementById('i-arquivo').files[0];
+    const out = document.getElementById('i-resultado');
+    if (!arq) return;
+    const conteudo = await arq.text();
+    try {
+      const r = await F.post('/api/transacoes/importar', { contaId: Number(document.getElementById('i-conta').value), nomeArquivo: arq.name, conteudo });
+      if (!r.sucesso) {
+        out.innerHTML = `<div class="aviso aviso-erro"><span><strong>Arquivo rejeitado.</strong> Corrija as linhas abaixo e envie novamente:<ul>${r.erros.map(x => `<li>${F.esc(x)}</li>`).join('')}</ul></span></div>`;
+        return;
+      }
+      out.innerHTML = `<div class="aviso aviso-ok"><span><strong>${r.importadas} transações importadas</strong> e categorizadas.
+        ${r.duplicadas ? `<br>${r.duplicadas} duplicadas ignoradas.` : ''}${r.incertas ? `<br>${r.incertas} precisam de revisão.` : ''}</span></div>`;
+      carregar();
+    } catch (err) { out.innerHTML = `<div class="aviso aviso-erro">${F.esc(err.message)}</div>`; }
+  });
+
+  document.getElementById('form-nova').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const t = await F.post('/api/transacoes', F.dadosForm(e.target));
+      F.fecharModal('m-nova');
+      F.toast(`Lançamento salvo em ${t.categoria} (${t.confianca}% de confiança).`);
+      e.target.reset();
+      carregar();
+    } catch (err) { F.toast(err.message, true); }
+  });
+
+  (async () => {
+    await F.iniciar('transacoes', 'Transações', 'Importação, categorização automática e revisão');
+    cats = await F.categorias();
+    contas = await F.get('/api/contas');
+    document.getElementById('f-cat').innerHTML += F.opcoesCategorias(cats);
+    const ativas = contas.filter(c => c.ativa);
+    document.getElementById('f-conta').innerHTML += contas.map(c => `<option value="${c.id}">${F.esc(c.apelido)}</option>`).join('');
+    document.getElementById('i-conta').innerHTML = ativas.map(c => `<option value="${c.id}">${F.esc(c.apelido)}</option>`).join('');
+    document.getElementById('n-conta').innerHTML = ativas.map(c => `<option value="${c.id}">${F.esc(c.apelido)}</option>`).join('');
+    const st = new URLSearchParams(location.search).get('status');
+    if (st) { document.getElementById('f-status').value = st; document.getElementById('f-periodo').value = 'todos'; }
+    carregar(); carregarRegras();
+  })();
+</script>
+</body>
+</html>

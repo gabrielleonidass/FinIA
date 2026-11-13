@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orçamentos · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="principal">
+    <header id="topo"></header>
+    <main class="conteudo" id="conteudo">
+      <section class="grade g-4">
+        <div class="cartao kpi"><span class="kpi-rotulo">Orçado no mês</span><span class="kpi-valor" id="k-orc">-</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo">Gasto até agora</span><span class="kpi-valor" id="k-gasto">-</span><span class="kpi-extra" id="k-pct"></span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo"><span class="ponto" style="background:#f59e0b"></span>Em alerta (≥ 80%)</span><span class="kpi-valor" id="k-alerta">-</span></div>
+        <div class="cartao kpi"><span class="kpi-rotulo"><span class="ponto" style="background:#dc2626"></span>Estourados (&gt; 100%)</span><span class="kpi-valor neg" id="k-est">-</span></div>
+      </section>
+      <section class="cartao">
+        <div class="cartao-cab">
+          <div><h2>Limites por categoria</h2><p>A categoria fica em alerta ao atingir 80% e estourada ao passar de 100%, até o fechamento do mês.</p></div>
+          <div class="acoes"><input type="month" id="mes" aria-label="Mês de referência" style="width:auto"><button class="btn btn-primario" id="btn-novo"></button></div>
+        </div>
+        <div class="tabela-wrap"><table>
+          <thead><tr><th>Categoria</th><th style="width:34%">Consumo</th><th class="num">Gasto</th><th class="num">Limite</th><th class="num">Disponível</th><th>Situação</th><th><span class="sr-only">Ações</span></th></tr></thead>
+          <tbody id="lista"></tbody>
+        </table></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<dialog id="m-orc" aria-labelledby="t-orc">
+  <form id="form-orc">
+    <div class="modal-cab"><h2 id="t-orc">Definir limite</h2><button type="button" class="fechar" data-fechar aria-label="Fechar">×</button></div>
+    <div class="modal-corpo">
+      <div class="campo"><label for="o-cat">Categoria</label><select id="o-cat" name="categoriaId"></select></div>
+      <div class="campo"><label for="o-lim">Limite mensal (R$)</label><input id="o-lim" name="limite" inputmode="decimal" required></div>
+      <p class="sub" style="margin:0">Se já houver limite para a categoria neste mês, ele será atualizado.</p>
+    </div>
+    <div class="modal-rodape"><button type="button" class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-primario">Salvar</button></div>
+  </form>
+</dialog>
+
+<script src="/js/app.js"></script>
+<script>
+  const F = FinIA;
+  const mesInput = document.getElementById('mes');
+  mesInput.value = F.mesAtual();
+  document.getElementById('btn-novo').innerHTML = F.icone('mais') + ' Definir limite';
+
+  async function carregar() {
+    const d = await F.get('/api/orcamentos?mes=' + mesInput.value);
+    const orc = d.itens.reduce((s, i) => s + i.limite, 0), gasto = d.itens.reduce((s, i) => s + i.consumido, 0);
+    document.getElementById('k-orc').textContent = F.moeda(orc);
+    document.getElementById('k-gasto').textContent = F.moeda(gasto);
+    document.getElementById('k-pct').textContent = orc ? Math.round(gasto / orc * 100) + '% do total orçado' : '';
+    document.getElementById('k-alerta').textContent = d.itens.filter(i => i.situacao === 'EM_ALERTA').length;
+    document.getElementById('k-est').textContent = d.itens.filter(i => i.situacao === 'ESTOURADO').length;
+    document.getElementById('lista').innerHTML = d.itens.length ? d.itens.map(i => {
+      const [rot, cls, barra] = F.rotuloSituacao[i.situacao];
+      return `<tr>
+        <td><span class="ponto" style="background:${i.cor};margin-right:8px"></span><strong>${F.esc(i.categoria)}</strong></td>
+        <td><div class="barra ${barra}" role="progressbar" aria-label="Consumo de ${F.esc(i.categoria)}" aria-valuenow="${i.percentual}" aria-valuemin="0" aria-valuemax="100"><span style="width:${Math.min(i.percentual, 100)}%"></span></div>
+            <span class="sub">${i.percentual}% utilizado</span></td>
+        <td class="num">${F.moeda(i.consumido)}</td>
+        <td class="num">${F.moeda(i.limite)}</td>
+        <td class="num ${i.disponivel < 0 ? 'neg' : ''}">${F.moeda(i.disponivel)}</td>
+        <td><span class="badge ${cls}">${rot}</span></td>
+        <td><button class="btn btn-sec btn-pequeno" data-editar="${i.categoriaId}" data-lim="${i.limite}">Editar</button>
+            <button class="btn btn-perigo btn-pequeno" data-remover="${i.id}" aria-label="Remover ${F.esc(i.categoria)}">${F.icone('lixo')}</button></td></tr>`;
+    }).join('') : '<tr><td colspan="7" class="vazio">Nenhum limite definido para este mês.</td></tr>';
+  }
+
+  document.getElementById('btn-novo').onclick = () => { document.getElementById('form-orc').reset(); F.abrirModal('m-orc'); };
+  document.getElementById('lista').addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.editar) { const f = document.getElementById('form-orc'); f.categoriaId.value = b.dataset.editar; f.limite.value = b.dataset.lim; F.abrirModal('m-orc'); }
+    if (b.dataset.remover) { await F.del('/api/orcamentos/' + b.dataset.remover); F.toast('Limite removido.'); carregar(); }
+  });
+  document.getElementById('form-orc').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try { await F.post('/api/orcamentos', { ...F.dadosForm(e.target), mes: mesInput.value }); F.fecharModal('m-orc'); F.toast('Limite salvo.'); carregar(); }
+    catch (err) { F.toast(err.message, true); }
+  });
+  mesInput.onchange = carregar;
+
+  F.iniciar('orcamentos', 'Orçamentos', 'Limites mensais por categoria com acompanhamento').then(async () => {
+    document.getElementById('o-cat').innerHTML = F.opcoesCategorias(await F.categorias(), null, true);
+    carregar();
+  });
+</script>
+</body>
+</html>
