@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relatórios · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main>
+  <div class="cabecalho">
+    <div>
+      <h1>Relatórios</h1>
+      <p class="subtitulo">Resumo do mês para guardar ou compartilhar.</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div class="campo"><label for="mes">Mês</label><input type="month" id="mes"></div>
+      <button class="botao botao-claro" id="pdf">Exportar PDF</button>
+      <button class="botao" id="excel">Exportar Excel (CSV)</button>
+    </div>
+  </div>
+
+  <section class="grade grade-3 espaco">
+    <div class="cartao numero"><small>Receitas</small><strong class="verde" id="receitas">-</strong></div>
+    <div class="cartao numero"><small>Despesas</small><strong class="laranja" id="despesas">-</strong></div>
+    <div class="cartao numero"><small>Saldo</small><strong id="saldo">-</strong></div>
+  </section>
+
+  <section class="grade grade-2 espaco">
+    <div class="cartao">
+      <h2>Gastos por categoria</h2>
+      <table><thead><tr><th>Categoria</th><th class="valor">Total</th><th class="valor">%</th></tr></thead><tbody id="categorias"></tbody></table>
+    </div>
+    <div class="cartao">
+      <h2>Comparação com o mês anterior</h2>
+      <table><thead><tr><th></th><th class="valor">Mês anterior</th><th class="valor">Este mês</th></tr></thead><tbody id="comparacao"></tbody></table>
+      <h2 style="margin-top:20px">Metas</h2>
+      <ul class="lista-simples" id="metas"></ul>
+    </div>
+  </section>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  avisoPrototipo('RF11', 'Os números vêm do banco de dados. O PDF usa a impressão do navegador ("Salvar como PDF") e o Excel é gerado como arquivo CSV.');
+
+  const campoMes = document.getElementById('mes');
+  let atual = null;
+
+  function mesAnterior(ym) {
+    const [a, m] = ym.split('-').map(Number);
+    const d = new Date(a, m - 2, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  async function carregar() {
+    const [r, ant] = await Promise.all([api('/api/inicio?mes=' + campoMes.value), api('/api/inicio?mes=' + mesAnterior(campoMes.value))]);
+    atual = r;
+    document.getElementById('receitas').textContent = moeda(r.receitas);
+    document.getElementById('despesas').textContent = moeda(r.despesas);
+    document.getElementById('saldo').textContent = moeda(r.saldo);
+    document.getElementById('categorias').innerHTML = r.gastosPorCategoria.map(g => `
+      <tr><td><span class="etiqueta"><span class="bolinha" style="background:${g.cor}"></span>${esc(g.categoria)}</span></td>
+      <td class="valor">${moeda(g.total)}</td><td class="valor">${r.despesas > 0 ? (g.total / r.despesas * 100).toFixed(0) : 0}%</td></tr>`).join('')
+      || '<tr><td colspan="3" class="vazio">Sem despesas no mês.</td></tr>';
+    const linha = (nome, a, b) => `<tr><td>${nome}</td><td class="valor">${moeda(a)}</td><td class="valor">${moeda(b)}</td></tr>`;
+    document.getElementById('comparacao').innerHTML =
+      linha('Receitas', ant.receitas, r.receitas) + linha('Despesas', ant.despesas, r.despesas) + linha('Saldo', ant.saldo, r.saldo);
+    document.getElementById('metas').innerHTML = r.metas.map(m => `
+      <li><span>${esc(m.nome)}</span><span>${m.percentual}% · ${moeda(m.valorGuardado)} de ${moeda(m.valorAlvo)}</span></li>`).join('');
+  }
+
+  document.getElementById('pdf').onclick = () => window.print();
+  document.getElementById('excel').onclick = () => {
+    const linhas = [['Relatório FinIA', nomeDoMes(campoMes.value)], [], ['Receitas', atual.receitas], ['Despesas', atual.despesas], ['Saldo', atual.saldo], [],
+      ['Categoria', 'Total'], ...atual.gastosPorCategoria.map(g => [g.categoria, g.total])];
+    const csv = '\ufeff' + linhas.map(l => l.map(c => String(c).replace('.', ',')).join(';')).join('\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    link.download = `relatorio-finia-${campoMes.value}.csv`;
+    link.click();
+  };
+
+  (async () => {
+    await montarTopo('relatorios');
+    campoMes.value = mesAtual();
+    campoMes.onchange = carregar;
+    carregar();
+  })();
+</script>
+</body>
+</html>

@@ -58,24 +58,39 @@ function dadosDoForm(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
-/** Monta o topo com o menu e confere se a pessoa está logada. */
+/** Monta o menu lateral e confere se a pessoa está logada. */
 async function montarTopo(paginaAtual) {
-  const paginas = [
-    { id: 'inicio', nome: 'Início' },
-    { id: 'transacoes', nome: 'Transações' },
-    { id: 'metas', nome: 'Metas' },
+  // Telas com back-end completo (salvam no banco) e telas de protótipo (só front-end)
+  const grupos = [
+    { titulo: 'Principal', paginas: [
+      { id: 'inicio', nome: 'Início', icone: '🏠' },
+      { id: 'transacoes', nome: 'Transações', icone: '💸' },
+      { id: 'importar', nome: 'Importar extrato', icone: '📥' },
+      { id: 'contas', nome: 'Contas e cartões', icone: '💳' },
+    ]},
+    { titulo: 'Planejamento', paginas: [
+      { id: 'orcamentos', nome: 'Orçamentos', icone: '📊' },
+      { id: 'metas', nome: 'Metas', icone: '🎯' },
+      { id: 'simulacao', nome: 'Simulação "E se"', icone: '🧮' },
+    ]},
+    { titulo: 'Acompanhamento', paginas: [
+      { id: 'alertas', nome: 'Alertas', icone: '🔔' },
+      { id: 'relatorios', nome: 'Relatórios', icone: '📄' },
+      { id: 'familia', nome: 'Grupo familiar', icone: '👨‍👩‍👧' },
+    ]},
   ];
-  const links = paginas.map(p =>
-    `<a href="/${p.id}" class="${p.id === paginaAtual ? 'ativo' : ''}">${p.nome}</a>`).join('');
+  const menu = grupos.map(g => `
+    <p class="menu-grupo">${g.titulo}</p>
+    ${g.paginas.map(p => `<a href="/${p.id}" class="${p.id === paginaAtual ? 'ativo' : ''}">
+      <span aria-hidden="true">${p.icone}</span>${esc(p.nome)}</a>`).join('')}`).join('');
 
+  document.body.classList.add('com-menu');
   document.body.insertAdjacentHTML('afterbegin', `
-    <header class="topo">
-      <div class="topo-conteudo">
-        <a class="logo" href="/inicio">Fin<span>IA</span></a>
-        <nav class="menu" aria-label="Menu principal">${links}</nav>
-        <div class="usuario"><span id="nome-usuario"></span><button id="sair">Sair</button></div>
-      </div>
-    </header>`);
+    <aside class="lateral">
+      <a class="logo" href="/inicio">Fin<span>IA</span></a>
+      <nav class="menu" aria-label="Menu principal">${menu}</nav>
+      <div class="usuario"><span id="nome-usuario"></span><button id="sair">Sair</button></div>
+    </aside>`);
 
   document.getElementById('sair').onclick = async () => {
     await api('/api/auth/sair', 'POST');
@@ -83,6 +98,35 @@ async function montarTopo(paginaAtual) {
   };
 
   const { usuario } = await api('/api/auth/eu');
-  document.getElementById('nome-usuario').textContent = 'Olá, ' + usuario.nome.split(' ')[0];
+  document.getElementById('nome-usuario').textContent = usuario.nome;
   return usuario;
+}
+
+/** Faixa amarela que identifica as telas de protótipo (só front-end). */
+function avisoPrototipo(requisito, texto) {
+  const main = document.querySelector('main');
+  main.insertAdjacentHTML('afterbegin', `
+    <div class="prototipo" role="note"><strong>Protótipo de interface (${requisito})</strong> ${texto}</div>`);
+}
+
+/** Abre uma janela simples (modal) com título, conteúdo HTML e botão de fechar. */
+function abrirModal(titulo, html) {
+  const fundo = document.createElement('div');
+  fundo.className = 'modal-fundo';
+  fundo.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(titulo)}">
+      <h2>${esc(titulo)}</h2>${html}
+      <div style="text-align:right;margin-top:16px"><button class="botao botao-claro" data-fechar>Fechar</button></div>
+    </div>`;
+  fundo.addEventListener('click', e => { if (e.target === fundo || e.target.dataset.fechar !== undefined) fundo.remove(); });
+  document.body.appendChild(fundo);
+  return fundo;
+}
+
+/** Mensagem rápida no canto da tela. */
+function aviso(texto) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = texto;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
 }

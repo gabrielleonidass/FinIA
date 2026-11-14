@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Importar extrato · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main>
+  <div class="cabecalho">
+    <div>
+      <h1>Importar extrato</h1>
+      <p class="subtitulo">Traga as transações do banco de uma vez, sem digitar uma por uma.</p>
+    </div>
+    <button class="botao botao-claro" id="open-finance">Conectar via Open Finance</button>
+  </div>
+
+  <section class="cartao espaco">
+    <h2>1. Escolha o arquivo do extrato</h2>
+    <label class="area-arquivo" id="area" for="arquivo">
+      <strong>Arraste o arquivo CSV aqui</strong> ou clique para escolher<br>
+      <small>Formato: data;descrição;valor (ex.: 14/11/2026;Uber;-24,90). Valor negativo = despesa.</small>
+    </label>
+    <input type="file" id="arquivo" accept=".csv,.txt" hidden>
+    <p class="dica" style="margin-top:10px">Não tem um arquivo? <a href="#" id="exemplo">Usar um extrato de exemplo</a>.</p>
+  </section>
+
+  <section class="cartao" id="previa" hidden>
+    <div class="cabecalho" style="margin-bottom:8px">
+      <h2 style="margin:0">2. Confira antes de importar</h2>
+      <button class="botao" id="importar">Importar transações válidas</button>
+    </div>
+    <p class="subtitulo" id="resumo"></p>
+    <div class="rolagem"><table>
+      <thead><tr><th>Linha</th><th>Data</th><th>Descrição</th><th class="valor">Valor</th><th>Situação</th></tr></thead>
+      <tbody id="linhas"></tbody>
+    </table></div>
+  </section>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  avisoPrototipo('RF02', 'A leitura do arquivo é feita no navegador. As linhas válidas são salvas pela mesma API da tela Transações, e a IA escolhe a categoria de cada uma. A conexão Open Finance é só ilustrativa.');
+
+  const EXEMPLO = `data;descricao;valor
+02/11/2026;Padaria Pão Quente;-12,50
+03/11/2026;Uber;-18,90
+04/11/2026;Pix recebido João;150,00
+31/02/2026;Data inválida;-10,00
+05/11/2026;Spotify;-21,90
+06/11/2026;Posto Ipiranga;abc`;
+
+  let validas = [];
+
+  /** Lê o CSV linha por linha e separa o que é válido do que tem erro. */
+  function lerCsv(texto) {
+    const linhas = texto.trim().split(/\r?\n/);
+    const resultado = [];
+    linhas.forEach((linha, i) => {
+      if (i === 0 && /data/i.test(linha)) return; // pula o cabeçalho
+      const [data, descricao, valorTxt] = linha.split(';').map(c => (c || '').trim());
+      const erro = validar(data, descricao, valorTxt);
+      const valor = Number((valorTxt || '').replace(/\./g, '').replace(',', '.'));
+      resultado.push({ numero: i + 1, data, descricao, valor, erro });
+    });
+    return resultado;
+  }
+
+  function validar(data, descricao, valorTxt) {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(data || '');
+    if (!m) return 'Data fora do formato dd/mm/aaaa';
+    const d = new Date(+m[3], +m[2] - 1, +m[1]);
+    if (d.getDate() !== +m[1] || d.getMonth() !== +m[2] - 1) return 'Data que não existe';
+    if (!descricao) return 'Descrição vazia';
+    if (isNaN(Number((valorTxt || '').replace(/\./g, '').replace(',', '.'))) || !valorTxt) return 'Valor inválido';
+    return null;
+  }
+
+  function mostrar(resultado) {
+    validas = resultado.filter(r => !r.erro);
+    document.getElementById('previa').hidden = false;
+    document.getElementById('resumo').textContent =
+      `${validas.length} linha(s) válida(s) e ${resultado.length - validas.length} com erro. As linhas com erro não serão importadas.`;
+    document.getElementById('linhas').innerHTML = resultado.map(r => `
+      <tr>
+        <td>${r.numero}</td><td>${esc(r.data)}</td><td>${esc(r.descricao)}</td>
+        <td class="valor ${r.valor >= 0 ? 'verde' : 'laranja'}">${isNaN(r.valor) ? '-' : moeda(r.valor)}</td>
+        <td>${r.erro ? `<span class="selo selo-erro">${esc(r.erro)}</span>` : '<span class="selo">OK</span>'}</td>
+      </tr>`).join('');
+    document.getElementById('importar').disabled = validas.length === 0;
+  }
+
+  function lerArquivo(arquivo) {
+    const leitor = new FileReader();
+    leitor.onload = () => mostrar(lerCsv(leitor.result));
+    leitor.readAsText(arquivo, 'UTF-8');
+  }
+
+  const area = document.getElementById('area');
+  document.getElementById('arquivo').onchange = e => e.target.files[0] && lerArquivo(e.target.files[0]);
+  area.ondragover = e => { e.preventDefault(); area.classList.add('sobre'); };
+  area.ondragleave = () => area.classList.remove('sobre');
+  area.ondrop = e => { e.preventDefault(); area.classList.remove('sobre'); e.dataTransfer.files[0] && lerArquivo(e.dataTransfer.files[0]); };
+  document.getElementById('exemplo').onclick = e => { e.preventDefault(); mostrar(lerCsv(EXEMPLO)); };
+
+  // Salva cada linha válida pela API de transações (back-end já existente)
+  document.getElementById('importar').onclick = async (e) => {
+    e.target.disabled = true;
+    for (const r of validas) {
+      const [dia, mes, ano] = r.data.split('/');
+      await api('/api/transacoes', 'POST', {
+        descricao: r.descricao, valor: Math.abs(r.valor),
+        tipo: r.valor >= 0 ? 'RECEITA' : 'DESPESA', data: `${ano}-${mes}-${dia}`
+      });
+    }
+    aviso(validas.length + ' transação(ões) importada(s). Veja em Transações.');
+    document.getElementById('previa').hidden = true;
+  };
+
+  document.getElementById('open-finance').onclick = () => abrirModal('Conectar via Open Finance', `
+    <p>Para ler suas transações automaticamente, o FinIA pede o seu consentimento ao banco:</p>
+    <ul><li><strong>Dados:</strong> saldo e extrato (somente leitura)</li>
+        <li><strong>Prazo:</strong> 12 meses, com cancelamento a qualquer momento</li>
+        <li><strong>O FinIA não faz pagamentos nem transferências</strong></li></ul>
+    <p class="subtitulo">Protótipo: a integração real exige credenciamento no Open Finance Brasil.</p>`);
+
+  montarTopo('importar');
+</script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orçamentos · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main>
+  <div class="cabecalho">
+    <div>
+      <h1>Orçamentos do mês</h1>
+      <p class="subtitulo">Defina um limite para cada categoria e veja quanto já gastou.</p>
+    </div>
+    <div class="campo"><label for="mes">Mês</label><input type="month" id="mes"></div>
+  </div>
+
+  <section class="grade grade-3 espaco">
+    <div class="cartao numero"><small>Total orçado</small><strong id="orcado">-</strong></div>
+    <div class="cartao numero"><small>Gasto nas categorias</small><strong class="laranja" id="gasto">-</strong></div>
+    <div class="cartao numero"><small>Categorias em alerta ou estouradas</small><strong id="alertas">-</strong></div>
+  </section>
+
+  <section class="cartao">
+    <div class="rolagem"><table>
+      <thead><tr><th>Categoria</th><th>Limite (R$)</th><th style="width:35%">Consumo</th><th class="valor">Gasto</th><th>Situação</th></tr></thead>
+      <tbody id="linhas"></tbody>
+    </table></div>
+    <p class="dica" style="margin-top:10px">Em alerta a partir de 80% do limite. Estourado acima de 100%.</p>
+  </section>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  avisoPrototipo('RF09', 'Os gastos vêm do banco de dados (mesmos números da tela Início). Os limites ficam salvos só neste navegador.');
+
+  const PADRAO = { 'Alimentação': 500, 'Transporte': 250, 'Moradia': 1500, 'Saúde': 150, 'Lazer': 200, 'Educação': 100, 'Compras': 300, 'Outros': 150 };
+  let limites = { ...PADRAO };
+  try { Object.assign(limites, JSON.parse(localStorage.getItem('finia-limites') || '{}')); } catch (e) { /* sem armazenamento */ }
+
+  const campoMes = document.getElementById('mes');
+  let gastos = {};
+
+  function situacao(p) {
+    if (p > 100) return ['Estourado', 'selo-erro', 'estourado'];
+    if (p >= 80) return ['Em alerta', 'selo-alerta', 'alerta'];
+    return ['Dentro do limite', '', ''];
+  }
+
+  function desenhar() {
+    let totalLimite = 0, totalGasto = 0, problemas = 0;
+    document.getElementById('linhas').innerHTML = Object.keys(limites).map(cat => {
+      const limite = Number(limites[cat]) || 0, gasto = gastos[cat]?.total || 0;
+      const p = limite > 0 ? gasto / limite * 100 : 0;
+      const [texto, selo, barra] = situacao(p);
+      totalLimite += limite; totalGasto += gasto; if (p >= 80) problemas++;
+      return `<tr>
+        <td><span class="etiqueta"><span class="bolinha" style="background:${gastos[cat]?.cor || '#94a3b8'}"></span>${esc(cat)}</span></td>
+        <td><input type="number" min="0" step="10" value="${limite}" data-cat="${esc(cat)}" style="width:110px" aria-label="Limite de ${esc(cat)}"></td>
+        <td><div class="barra ${barra}" style="margin:0"><div style="width:${Math.min(p, 100)}%"></div></div><small class="subtitulo">${p.toFixed(0)}%</small></td>
+        <td class="valor">${moeda(gasto)}</td>
+        <td><span class="selo ${selo}">${texto}</span></td>
+      </tr>`;
+    }).join('');
+    document.getElementById('orcado').textContent = moeda(totalLimite);
+    document.getElementById('gasto').textContent = moeda(totalGasto);
+    document.getElementById('alertas').textContent = problemas;
+  }
+
+  async function carregar() {
+    const r = await api('/api/inicio?mes=' + campoMes.value);
+    gastos = Object.fromEntries(r.gastosPorCategoria.map(g => [g.categoria, g]));
+    desenhar();
+  }
+
+  document.getElementById('linhas').onchange = e => {
+    if (!e.target.dataset.cat) return;
+    limites[e.target.dataset.cat] = Number(e.target.value);
+    try { localStorage.setItem('finia-limites', JSON.stringify(limites)); } catch (err) { /* sem armazenamento */ }
+    desenhar();
+  };
+
+  (async () => {
+    await montarTopo('orcamentos');
+    campoMes.value = mesAtual();
+    campoMes.onchange = carregar;
+    carregar();
+  })();
+</script>
+</body>
+</html>

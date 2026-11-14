@@ -7,13 +7,27 @@ Back-end em **Java 17**, front-end em **HTML, CSS e JavaScript** e banco de dado
 
 ## O que o sistema faz
 
-| Tela | O que dá para fazer | Back-end |
+**Telas com back-end completo** (leem e gravam no banco de dados):
+
+| Tela | O que dá para fazer |
+|---|---|
+| **Login** | Entrar com e-mail e senha |
+| **Cadastro** | Criar conta (senha forte, e-mail único) |
+| **Início** | Ver receitas, despesas e saldo do mês, gráfico de gastos por categoria, últimas transações e metas |
+| **Transações** | Registrar receitas e despesas; a **IA escolhe a categoria** pela descrição; corrigir a categoria (o sistema aprende); excluir |
+| **Metas** | Criar metas com valor e prazo, ver quanto guardar por mês e ir guardando dinheiro |
+
+**Telas de protótipo** (front-end completo, com uma faixa amarela indicando que são protótipo):
+
+| Tela | Requisito | Como funciona |
 |---|---|---|
-| **Login** | Entrar com e-mail e senha | ✅ |
-| **Cadastro** | Criar conta (senha forte, e-mail único) | ✅ |
-| **Início** | Ver receitas, despesas e saldo do mês, gráfico de gastos por categoria, últimas transações e metas | ✅ |
-| **Transações** | Registrar receitas e despesas; a **IA escolhe a categoria** pela descrição; corrigir a categoria (o sistema aprende); excluir | ✅ |
-| **Metas** | Criar metas com valor e prazo, ver quanto guardar por mês e ir guardando dinheiro | ✅ |
+| **Importar extrato** | RF02 | Lê um CSV no navegador, mostra as linhas com erro e salva as válidas pela API de transações; Open Finance ilustrativo |
+| **Contas e cartões** | RF10 | Contas de exemplo; criar, renomear, desativar e reativar (só na tela) |
+| **Orçamentos** | RF09 | Gastos reais do banco; limites por categoria guardados no navegador; alerta em 80% e estouro em 100% |
+| **Simulação "E se"** | RF06 | Corte de gastos e renda extra, calculado no navegador sobre os gastos e metas reais |
+| **Alertas** | RF08 | Alertas de exemplo e preferências por tipo e canal |
+| **Relatórios** | RF11 | Números reais do mês, comparação com o mês anterior, PDF pela impressão e Excel em CSV |
+| **Grupo familiar** | RF12 | Membros de exemplo, convite e permissões (só na tela) |
 
 ## Como executar
 

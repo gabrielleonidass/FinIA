@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grupo familiar · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main>
+  <div class="cabecalho">
+    <div>
+      <h1>Grupo familiar</h1>
+      <p class="subtitulo">Compartilhe o planejamento da casa e escolha o que cada pessoa pode fazer.</p>
+    </div>
+  </div>
+
+  <section class="grade grade-2">
+    <div class="cartao">
+      <h2>Família Souza</h2>
+      <ul class="lista-simples" id="membros"></ul>
+    </div>
+    <div class="cartao">
+      <h2>Convidar pessoa</h2>
+      <form id="form" class="formulario">
+        <div class="campo"><label for="nome">Nome</label><input id="nome" name="nome" required></div>
+        <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" required></div>
+        <div class="campo"><label for="permissao">Permissão</label>
+          <select id="permissao" name="permissao"><option>Só visualizar</option><option>Visualizar e editar</option></select></div>
+        <button class="botao" type="submit">Enviar convite</button>
+      </form>
+      <h2 style="margin-top:22px">O que cada permissão pode fazer</h2>
+      <table>
+        <thead><tr><th></th><th>Só visualizar</th><th>Visualizar e editar</th></tr></thead>
+        <tbody>
+          <tr><td>Ver resumo e relatórios da casa</td><td>✔</td><td>✔</td></tr>
+          <tr><td>Editar metas e orçamentos da casa</td><td>–</td><td>✔</td></tr>
+          <tr><td>Ver contas pessoais dos outros</td><td>–</td><td>–</td></tr>
+          <tr><td>Convidar ou remover pessoas</td><td>–</td><td>–</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  avisoPrototipo('RF12', 'Os membros abaixo são de exemplo e ficam só nesta tela. Só o administrador do grupo convida, remove e muda permissões.');
+
+  let membros = [
+    { nome: 'Ana Beatriz Souza', email: 'demo@finia.com', permissao: 'Administrador', status: 'Ativo' },
+    { nome: 'Carlos Souza', email: 'carlos@email.com', permissao: 'Visualizar e editar', status: 'Ativo' },
+    { nome: 'Júlia Souza', email: 'julia@email.com', permissao: 'Só visualizar', status: 'Convite pendente' },
+  ];
+
+  function desenhar() {
+    document.getElementById('membros').innerHTML = membros.map((m, i) => `
+      <li>
+        <div><strong>${esc(m.nome)}</strong> ${m.status !== 'Ativo' ? '<span class="selo selo-alerta">' + m.status + '</span>' : ''}<br>
+          <small class="subtitulo">${esc(m.email)}</small></div>
+        ${m.permissao === 'Administrador' ? '<span class="selo">Administrador</span>' : `
+          <div style="display:flex;gap:6px">
+            <select data-perm="${i}" style="width:auto" aria-label="Permissão de ${esc(m.nome)}">
+              ${['Só visualizar', 'Visualizar e editar'].map(p => `<option ${p === m.permissao ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
+            <button class="botao botao-perigo botao-pequeno" data-remover="${i}">Remover</button>
+          </div>`}
+      </li>`).join('');
+  }
+
+  document.getElementById('membros').onchange = e => { if (e.target.dataset.perm) { membros[e.target.dataset.perm].permissao = e.target.value; aviso('Permissão alterada.'); } };
+  document.getElementById('membros').onclick = e => {
+    if (e.target.dataset.remover && confirm('Remover esta pessoa do grupo?')) { membros.splice(e.target.dataset.remover, 1); desenhar(); }
+  };
+  document.getElementById('form').onsubmit = e => {
+    e.preventDefault();
+    const d = dadosDoForm(e.target);
+    membros.push({ ...d, status: 'Convite pendente' });
+    e.target.reset();
+    aviso('Convite enviado para ' + d.email + '.');
+    desenhar();
+  };
+
+  montarTopo('familia');
+  desenhar();
+</script>
+</body>
+</html>

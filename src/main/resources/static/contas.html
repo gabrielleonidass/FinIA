@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contas e cartões · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main>
+  <div class="cabecalho">
+    <div>
+      <h1>Contas e cartões</h1>
+      <p class="subtitulo">Organize de onde vem e para onde vai cada transação.</p>
+    </div>
+  </div>
+
+  <section class="grade grade-3 espaco">
+    <div class="cartao numero"><small>Saldo somado das contas</small><strong id="total">-</strong></div>
+    <div class="cartao numero"><small>Contas ativas</small><strong id="ativas">-</strong></div>
+    <div class="cartao numero"><small>Faturas em aberto</small><strong class="laranja" id="faturas">-</strong></div>
+  </section>
+
+  <section class="grade grade-2 espaco" id="lista"></section>
+
+  <section class="cartao">
+    <h2>Nova conta ou cartão</h2>
+    <form id="form" class="linha-form" style="grid-template-columns: minmax(0,2fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto">
+      <div class="campo"><label for="apelido">Apelido</label><input id="apelido" name="apelido" required placeholder="Ex.: Conta do salário"></div>
+      <div class="campo"><label for="tipo">Tipo</label>
+        <select id="tipo" name="tipo"><option>Conta corrente</option><option>Poupança</option><option>Cartão de crédito</option></select></div>
+      <div class="campo"><label for="banco">Banco</label><input id="banco" name="banco" required placeholder="Ex.: Inter"></div>
+      <div class="campo"><label for="saldo">Saldo / fatura (R$)</label><input id="saldo" name="saldo" type="number" step="0.01" value="0"></div>
+      <button class="botao" type="submit">Adicionar</button>
+    </form>
+  </section>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  avisoPrototipo('RF10', 'Os dados abaixo são de exemplo e ficam só nesta tela (não são salvos no banco).');
+
+  const CORES = { 'Conta corrente': '#0f766e', 'Poupança': '#4c6ef5', 'Cartão de crédito': '#7c3aed' };
+  let contas = [
+    { apelido: 'Conta do salário', banco: 'Itaú', tipo: 'Conta corrente', saldo: 3067.20, ativa: true },
+    { apelido: 'Roxinho', banco: 'Nubank', tipo: 'Cartão de crédito', saldo: -842.35, ativa: true, vencimento: 15 },
+    { apelido: 'Reserva', banco: 'Caixa', tipo: 'Poupança', saldo: 3200.00, ativa: true },
+    { apelido: 'Cartão da loja (antigo)', banco: 'Riachuelo', tipo: 'Cartão de crédito', saldo: 0, ativa: false },
+  ];
+
+  function desenhar() {
+    const ativas = contas.filter(c => c.ativa);
+    document.getElementById('total').textContent = moeda(ativas.filter(c => c.tipo !== 'Cartão de crédito').reduce((s, c) => s + c.saldo, 0));
+    document.getElementById('ativas').textContent = ativas.length;
+    document.getElementById('faturas').textContent = moeda(-ativas.filter(c => c.tipo === 'Cartão de crédito').reduce((s, c) => s + c.saldo, 0));
+    document.getElementById('lista').innerHTML = contas.map((c, i) => `
+      <div>
+        <div class="cartao-conta ${c.ativa ? '' : 'desativada'}" style="background:${CORES[c.tipo]}">
+          <div class="meta-topo"><small>${esc(c.banco)} · ${c.tipo}</small><small>${c.ativa ? 'Ativa' : 'Desativada'}</small></div>
+          <div><small>${c.tipo === 'Cartão de crédito' ? 'Fatura atual' + (c.vencimento ? ' · vence dia ' + c.vencimento : '') : 'Saldo'}</small><br>
+            <strong>${moeda(Math.abs(c.saldo))}</strong></div>
+          <strong style="font-size:1rem">${esc(c.apelido)}</strong>
+        </div>
+        <div class="meta-acoes">
+          <button class="botao botao-claro botao-pequeno" data-renomear="${i}">Renomear</button>
+          <button class="botao ${c.ativa ? 'botao-perigo' : 'botao-claro'} botao-pequeno" data-ativar="${i}">${c.ativa ? 'Desativar' : 'Reativar'}</button>
+        </div>
+      </div>`).join('');
+  }
+
+  document.getElementById('lista').onclick = e => {
+    const i = e.target.dataset.renomear ?? e.target.dataset.ativar;
+    if (i === undefined) return;
+    if (e.target.dataset.renomear !== undefined) {
+      const novo = prompt('Novo apelido:', contas[i].apelido);
+      if (novo) contas[i].apelido = novo.trim();
+    } else {
+      contas[i].ativa = !contas[i].ativa;
+      aviso(contas[i].ativa ? 'Conta reativada.' : 'Conta desativada. O histórico continua guardado.');
+    }
+    desenhar();
+  };
+
+  document.getElementById('form').onsubmit = e => {
+    e.preventDefault();
+    const d = dadosDoForm(e.target);
+    const saldo = Number(d.saldo || 0);
+    contas.push({ apelido: d.apelido, banco: d.banco, tipo: d.tipo, saldo: d.tipo === 'Cartão de crédito' ? -Math.abs(saldo) : saldo, ativa: true });
+    e.target.reset();
+    desenhar();
+  };
+
+  montarTopo('contas');
+  desenhar();
+</script>
+</body>
+</html>

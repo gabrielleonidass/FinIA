@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulação · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main>
+  <div class="cabecalho">
+    <div>
+      <h1>Simulação "E se"</h1>
+      <p class="subtitulo">E se eu gastasse menos numa categoria? Veja o efeito nas suas metas, sem mudar nada de verdade.</p>
+    </div>
+  </div>
+
+  <section class="cartao espaco">
+    <div class="linha-form" style="grid-template-columns: minmax(0,1.2fr) minmax(0,2fr) minmax(0,1fr)">
+      <div class="campo"><label for="categoria">Categoria</label><select id="categoria"></select></div>
+      <div class="campo"><label for="corte">Reduzir gastos em <strong id="corte-txt">20%</strong></label>
+        <input type="range" id="corte" min="0" max="100" step="5" value="20"></div>
+      <div class="campo"><label for="extra">Renda extra por mês (R$)</label><input type="number" id="extra" min="0" step="50" value="0"></div>
+    </div>
+  </section>
+
+  <section class="grade grade-3 espaco">
+    <div class="cartao numero"><small>Gasto atual na categoria</small><strong id="atual">-</strong></div>
+    <div class="cartao numero"><small>Economia por mês</small><strong class="verde" id="economia">-</strong></div>
+    <div class="cartao numero"><small>Sobra a mais em 12 meses</small><strong class="verde" id="ano">-</strong></div>
+  </section>
+
+  <section class="cartao">
+    <h2>Efeito nas metas</h2>
+    <div class="rolagem"><table>
+      <thead><tr><th>Meta</th><th class="valor">Falta</th><th>Hoje</th><th>Com a simulação</th><th>Diferença</th></tr></thead>
+      <tbody id="metas"></tbody>
+    </table></div>
+    <p class="dica" style="margin-top:10px">Considera que a economia vai toda para a meta, além do valor por mês que você já guardaria.</p>
+  </section>
+</main>
+<script src="/js/app.js"></script>
+<script>
+  avisoPrototipo('RF06', 'O cálculo é feito no navegador com os seus gastos e metas reais. Nada é alterado no banco.');
+
+  let gastos = [], metas = [];
+  const $ = id => document.getElementById(id);
+
+  function meses(falta, porMes) {
+    return porMes > 0 ? Math.ceil(falta / porMes) : Infinity;
+  }
+  function texto(n) { return n === Infinity ? 'nunca' : n + (n === 1 ? ' mês' : ' meses'); }
+
+  function calcular() {
+    const g = gastos.find(x => x.categoria === $('categoria').value);
+    const atual = g ? g.total : 0;
+    const corte = Number($('corte').value);
+    const economia = atual * corte / 100 + Number($('extra').value || 0);
+    $('corte-txt').textContent = corte + '%';
+    $('atual').textContent = moeda(atual);
+    $('economia').textContent = moeda(economia);
+    $('ano').textContent = moeda(economia * 12);
+    const ativas = metas.filter(m => !m.concluida);
+    const parte = ativas.length ? economia / ativas.length : 0;
+    $('metas').innerHTML = ativas.length === 0
+      ? '<tr><td colspan="5" class="vazio">Nenhuma meta em andamento.</td></tr>'
+      : ativas.map(m => {
+        const hoje = meses(m.falta, m.valorPorMes);
+        const depois = meses(m.falta, m.valorPorMes + parte);
+        const ganho = hoje === Infinity ? 0 : hoje - depois;
+        return `<tr><td>${esc(m.nome)}</td><td class="valor">${moeda(m.falta)}</td><td>${texto(hoje)}</td>
+          <td><strong>${texto(depois)}</strong></td>
+          <td>${ganho > 0 ? `<span class="selo">${ganho} ${ganho === 1 ? 'mês' : 'meses'} antes</span>` : '<span class="selo selo-cinza">sem mudança</span>'}</td></tr>`;
+      }).join('');
+  }
+
+  (async () => {
+    await montarTopo('simulacao');
+    const [r, m] = await Promise.all([api('/api/inicio'), api('/api/metas')]);
+    gastos = r.gastosPorCategoria; metas = m;
+    $('categoria').innerHTML = gastos.map(g => `<option>${esc(g.categoria)}</option>`).join('') || '<option>Sem gastos no mês</option>';
+    ['categoria', 'corte', 'extra'].forEach(id => $(id).oninput = calcular);
+    calcular();
+  })();
+</script>
+</body>
+</html>
