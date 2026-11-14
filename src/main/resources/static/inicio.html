@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Início · FinIA</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main>
+  <div class="cabecalho">
+    <div>
+      <h1>Resumo do mês</h1>
+      <p class="subtitulo" id="titulo-mes"></p>
+    </div>
+    <div class="campo">
+      <label for="mes">Mês</label>
+      <input type="month" id="mes">
+    </div>
+  </div>
+
+  <!-- 1) Receitas, despesas e saldo -->
+  <section class="grade grade-3 espaco">
+    <div class="cartao numero"><small>Receitas</small><strong class="verde" id="receitas">-</strong></div>
+    <div class="cartao numero"><small>Despesas</small><strong class="laranja" id="despesas">-</strong></div>
+    <div class="cartao numero"><small>Saldo do mês</small><strong id="saldo">-</strong></div>
+  </section>
+
+  <section class="grade grade-2 espaco">
+    <!-- 2) Gráfico de gastos por categoria -->
+    <div class="cartao">
+      <h2>Para onde foi o dinheiro</h2>
+      <div style="position:relative;height:260px"><canvas id="grafico" aria-label="Gastos por categoria"></canvas></div>
+      <p class="vazio" id="sem-gastos" hidden>Nenhuma despesa neste mês.</p>
+    </div>
+
+    <!-- 3) Metas -->
+    <div class="cartao">
+      <h2>Minhas metas</h2>
+      <div class="lista-metas" id="metas"></div>
+      <a href="/metas">Ver todas as metas →</a>
+    </div>
+  </section>
+
+  <!-- 4) Últimas transações -->
+  <section class="cartao">
+    <div class="cabecalho" style="margin-bottom:6px">
+      <h2 style="margin:0">Últimas transações</h2>
+      <a class="botao botao-claro botao-pequeno" href="/transacoes" style="text-decoration:none">+ Nova transação</a>
+    </div>
+    <div class="rolagem"><table>
+      <tbody id="ultimas"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<script src="/js/chart.umd.min.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  let grafico = null;
+  const campoMes = document.getElementById('mes');
+
+  async function carregar() {
+    const r = await api('/api/inicio?mes=' + campoMes.value);
+    document.getElementById('titulo-mes').textContent = 'Como estão suas finanças em ' + nomeDoMes(r.mes);
+
+    // Números
+    document.getElementById('receitas').textContent = moeda(r.receitas);
+    document.getElementById('despesas').textContent = moeda(r.despesas);
+    const saldo = document.getElementById('saldo');
+    saldo.textContent = moeda(r.saldo);
+    saldo.className = r.saldo < 0 ? 'laranja' : 'verde';
+
+    // Gráfico (rosca)
+    if (grafico) grafico.destroy();
+    document.getElementById('sem-gastos').hidden = r.gastosPorCategoria.length > 0;
+    grafico = new Chart(document.getElementById('grafico'), {
+      type: 'doughnut',
+      data: {
+        labels: r.gastosPorCategoria.map(g => g.categoria),
+        datasets: [{ data: r.gastosPorCategoria.map(g => g.total), backgroundColor: r.gastosPorCategoria.map(g => g.cor), borderWidth: 2 }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right' },
+          tooltip: { callbacks: { label: (c) => c.label + ': ' + moeda(c.raw) } }
+        }
+      }
+    });
+
+    // Metas
+    document.getElementById('metas').innerHTML = r.metas.length === 0
+      ? '<p class="vazio">Nenhuma meta criada.</p>'
+      : r.metas.map(m => `
+        <div class="meta">
+          <div class="meta-topo"><strong>${esc(m.nome)}</strong><span>${m.percentual}%</span></div>
+          <div class="barra ${m.concluida ? 'completa' : ''}"><div style="width:${m.percentual}%"></div></div>
+          <div class="meta-info"><span>${moeda(m.valorGuardado)} de ${moeda(m.valorAlvo)}</span></div>
+        </div>`).join('');
+
+    // Últimas transações
+    document.getElementById('ultimas').innerHTML = r.ultimas.length === 0
+      ? '<tr><td class="vazio">Nenhuma transação ainda.</td></tr>'
+      : r.ultimas.map(t => `
+        <tr>
+          <td style="width:110px">${dataBR(t.data)}</td>
+          <td>${esc(t.descricao)}</td>
+          <td><span class="etiqueta"><span class="bolinha" style="background:${t.categoria.cor}"></span>${esc(t.categoria.nome)}</span></td>
+          <td class="valor ${t.tipo === 'RECEITA' ? 'verde' : 'laranja'}">${t.tipo === 'RECEITA' ? '+' : '-'} ${moeda(t.valor)}</td>
+        </tr>`).join('');
+  }
+
+  (async () => {
+    await montarTopo('inicio');
+    campoMes.value = mesAtual();
+    campoMes.onchange = carregar;
+    carregar();
+  })();
+</script>
+</body>
+</html>

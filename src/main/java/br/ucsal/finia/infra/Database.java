@@ -9,13 +9,13 @@ import java.util.List;
 
 /**
  * Acesso ao banco de dados via JDBC.
- * Por padrão usa H2 em arquivo (./data/finia). A URL pode ser trocada pela
+ * Por padrão usa H2 em arquivo (./data/finia_simples.mv.db). A URL pode ser trocada pela
  * variável de ambiente FINIA_DB_URL (ex.: MySQL), com FINIA_DB_USER/FINIA_DB_PASS.
  */
 public final class Database {
 
     private static String url = System.getenv().getOrDefault("FINIA_DB_URL",
-            "jdbc:h2:file:./data/finia;MODE=MySQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1");
+            "jdbc:h2:file:./data/finia_simples;MODE=MySQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1");
     private static String user = System.getenv().getOrDefault("FINIA_DB_USER", "sa");
     private static String pass = System.getenv().getOrDefault("FINIA_DB_PASS", "");
 

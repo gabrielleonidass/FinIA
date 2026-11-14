@@ -10,9 +10,9 @@ Pedir autorização para anotar (e, se for o caso, gravar). Não registrar dados
 
 | Perfil | Por que entrevistar | Requisitos mais relacionados |
 |---|---|---|
-| Usuário individual (ex.: estudante ou jovem trabalhador) | Público principal do app | RF01–RF09 |
-| Responsável pelas finanças da casa | Uso familiar e compartilhado | RF07, RF09, RF12 |
-| Stakeholder técnico: contador ou consultor financeiro | Visão de quem orienta finanças e analisa relatórios | RF05, RF06, RF11 |
+| Usuário individual (ex.: estudante ou jovem trabalhador) | Público principal do app | RF01–RF05, RF07 |
+| Responsável pelas finanças da casa | Controla receitas e despesas de todos | RF02, RF05, RF07 |
+| Stakeholder técnico: contador ou consultor financeiro | Visão de quem orienta finanças | RF03, RF05, RF07 |
 
 ## Bloco 1 – Perfil e hábitos (5 min)
 1. Como você controla suas finanças hoje (planilha, caderno, app, banco, nenhum)?
@@ -27,17 +27,17 @@ Pedir autorização para anotar (e, se for o caso, gravar). Não registrar dados
 8. Que tipo de aviso seria útil receber? Por qual canal (notificação, e-mail)?
 9. (Familiar) Você divide o controle financeiro com alguém? Quem pode ver ou alterar o quê?
 
-## Bloco 3 – Confiança e privacidade (3 min)
-10. Você conectaria sua conta bancária ao app via Open Finance? O que te deixaria seguro?
+## Bloco 3 – Confiança (3 min)
+10. O que te deixaria seguro para colocar seus dados financeiros num app?
 11. Se o app errar a categoria de um gasto, como você gostaria de corrigir?
 
 ## Bloco 4 – Teste do protótipo (7 min)
 Entregar o sistema com a conta demo (`demo@finia.com` / `Demo@1234`) e pedir que:
-- a) encontre quanto gastou com Alimentação no mês e se passou do orçamento;
-- b) corrija a categoria de uma transação marcada como "incerta";
-- c) crie uma meta de R$ 12.000,00 em 12 meses e diga quanto precisa guardar por mês;
-- d) simule cortar 20% do Lazer e veja o efeito nas metas;
-- e) exporte o relatório do mês em PDF.
+- a) diga quanto gastou no mês e com qual categoria gastou mais (tela Início);
+- b) registre um gasto "Uber" de R$ 20,00 e confira a categoria escolhida pela IA;
+- c) troque a categoria de uma transação e registre outra igual para ver se o sistema aprendeu;
+- d) crie uma meta de R$ 1.200,00 para daqui a 6 meses e diga quanto precisa guardar por mês;
+- e) guarde R$ 100,00 nessa meta.
 
 Anotar: concluiu sozinho? (sim / com ajuda / não), tempo aproximado, comentários.
 

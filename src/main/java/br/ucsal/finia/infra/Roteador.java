@@ -107,16 +107,7 @@ public class Roteador implements HttpHandler {
     }
 
     private void responder(HttpExchange ex, Object resultado) throws IOException {
-        if (resultado instanceof Arquivo a) {
-            ex.getResponseHeaders().set("Content-Type", a.contentType());
-            ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + a.nomeArquivo() + "\"");
-            ex.sendResponseHeaders(200, a.conteudo().length);
-            try (OutputStream os = ex.getResponseBody()) {
-                os.write(a.conteudo());
-            }
-        } else {
-            enviarJson(ex, 200, resultado == null ? Json.obj("ok", true) : resultado);
-        }
+        enviarJson(ex, 200, resultado == null ? Json.obj("ok", true) : resultado);
     }
 
     static void enviarJson(HttpExchange ex, int status, Object corpo) throws IOException {
@@ -132,8 +123,7 @@ public class Roteador implements HttpHandler {
     private static final Map<String, String> TIPOS = Map.of(
             "html", "text/html; charset=utf-8", "css", "text/css; charset=utf-8",
             "js", "application/javascript; charset=utf-8", "svg", "image/svg+xml",
-            "png", "image/png", "ico", "image/x-icon", "csv", "text/csv; charset=utf-8",
-            "ofx", "application/x-ofx");
+            "png", "image/png", "ico", "image/x-icon");
 
     private void servirEstatico(HttpExchange ex, String caminho) throws IOException {
         if (caminho.equals("/favicon.ico")) {

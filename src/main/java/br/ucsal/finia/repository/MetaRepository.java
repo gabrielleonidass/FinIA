@@ -1,47 +1,41 @@
 package br.ucsal.finia.repository;
 
 import br.ucsal.finia.infra.Jdbc;
-import br.ucsal.finia.model.Enums.StatusMeta;
 import br.ucsal.finia.model.Meta;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-/** Acesso à tabela meta (RF05). */
+/** Acesso à tabela meta. */
 public class MetaRepository {
 
-    private static Meta mapear(ResultSet rs) throws SQLException {
-        return new Meta(rs.getLong("id"), rs.getLong("usuario_id"), rs.getString("nome"), rs.getBigDecimal("valor_alvo"),
-                rs.getBigDecimal("valor_acumulado"), Jdbc.data(rs, "data_limite"), rs.getBigDecimal("taxa_rendimento_mensal"),
-                StatusMeta.valueOf(rs.getString("status")));
+    public long inserir(long usuarioId, String nome, BigDecimal valorAlvo, BigDecimal valorGuardado, LocalDate prazo) {
+        return Jdbc.inserir("INSERT INTO meta (usuario_id, nome, valor_alvo, valor_guardado, prazo) VALUES (?, ?, ?, ?, ?)",
+                usuarioId, nome, valorAlvo, valorGuardado, prazo);
     }
 
     public List<Meta> listar(long usuarioId) {
-        return Jdbc.listar("select * from meta where usuario_id=? order by case status when 'CANCELADA' then 2 " +
-                "when 'CONCLUIDA' then 1 else 0 end, data_limite", MetaRepository::mapear, usuarioId);
+        return Jdbc.listar("SELECT * FROM meta WHERE usuario_id = ? ORDER BY prazo", MetaRepository::mapear, usuarioId);
     }
 
-    public List<Meta> listarEmAndamento(long usuarioId) {
-        return Jdbc.listar("select * from meta where usuario_id=? and status in ('ATIVA','EM_RISCO') order by data_limite",
-                MetaRepository::mapear, usuarioId);
+    public Optional<Meta> buscar(long usuarioId, long id) {
+        return Jdbc.buscar("SELECT * FROM meta WHERE usuario_id = ? AND id = ?", MetaRepository::mapear, usuarioId, id);
     }
 
-    public Optional<Meta> buscar(long id, long usuarioId) {
-        return Jdbc.buscar("select * from meta where id=? and usuario_id=?", MetaRepository::mapear, id, usuarioId);
+    public void atualizarValorGuardado(long id, BigDecimal novoValor) {
+        Jdbc.executar("UPDATE meta SET valor_guardado = ? WHERE id = ?", novoValor, id);
     }
 
-    public long inserir(Meta m) {
-        return Jdbc.inserir("insert into meta (usuario_id,nome,valor_alvo,valor_acumulado,data_limite,taxa_rendimento_mensal," +
-                        "status,criada_em) values (?,?,?,?,?,?,?,?)", m.usuarioId(), m.nome(), m.valorAlvo(), m.valorAcumulado(),
-                m.dataLimite(), m.taxaRendimentoMensal(), m.status(), LocalDateTime.now());
+    public int excluir(long usuarioId, long id) {
+        return Jdbc.executar("DELETE FROM meta WHERE id = ? AND usuario_id = ?", id, usuarioId);
     }
 
-    public void atualizar(Meta m) {
-        Jdbc.executar("update meta set nome=?, valor_alvo=?, valor_acumulado=?, data_limite=?, taxa_rendimento_mensal=?, status=? " +
-                        "where id=? and usuario_id=?", m.nome(), m.valorAlvo(), m.valorAcumulado(), m.dataLimite(),
-                m.taxaRendimentoMensal(), m.status(), m.id(), m.usuarioId());
+    private static Meta mapear(ResultSet rs) throws SQLException {
+        return new Meta(rs.getLong("id"), rs.getLong("usuario_id"), rs.getString("nome"),
+                rs.getBigDecimal("valor_alvo"), rs.getBigDecimal("valor_guardado"), Jdbc.data(rs, "prazo"));
     }
 }

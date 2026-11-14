@@ -42,8 +42,9 @@ public final class Jdbc {
     }
 
     public static BigDecimal decimal(String sql, Object... params) {
-        return buscar(sql, rs -> rs.getBigDecimal(1), params)
-                .map(v -> v == null ? BigDecimal.ZERO : v).orElse(BigDecimal.ZERO);
+        // SUM() de nenhuma linha devolve NULL no SQL: nesse caso a soma é zero.
+        List<BigDecimal> l = listar(sql, rs -> rs.getBigDecimal(1), params);
+        return l.isEmpty() || l.get(0) == null ? BigDecimal.ZERO : l.get(0);
     }
 
     public static long numero(String sql, Object... params) {

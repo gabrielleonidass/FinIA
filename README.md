@@ -1,77 +1,88 @@
-# FinIA – Gestão financeira pessoal e familiar com categorização automática
+# FinIA – Controle de finanças pessoais com categorização automática
 
-Projeto acadêmico (UCSAL, 2026) desenvolvido a partir da documentação de requisitos do FinIA
-(RF01–RF12, RNF01–RNF08). Back-end em **Java 17**, front-end em HTML/CSS/JavaScript e banco **H2**
-integrado (modo compatível com MySQL).
+Projeto acadêmico (UCSAL, 2026) feito a partir da documentação de requisitos do FinIA.
+Back-end em **Java 17**, front-end em **HTML, CSS e JavaScript** e banco de dados **H2** integrado.
 
-## Funcionalidades
+## O que o sistema faz
 
-| Tela | Requisito | Back-end |
+| Tela | O que dá para fazer | Back-end |
 |---|---|---|
-| Login, cadastro e confirmação de e-mail | RF01 | ✅ |
-| Visão geral (dashboard) | RF07 | ✅ |
-| Transações: importação CSV/OFX, categorização automática, reclassificação e regras | RF02, RF03, RF04 | ✅ |
-| Contas e cartões (+ consentimento Open Finance simulado) | RF10, RF02 | ✅ |
-| Metas com simulação de aporte | RF05 | ✅ |
-| Orçamentos por categoria | RF09 | ✅ |
-| Simulação "E se" | RF06 | ✅ |
-| Alertas e preferências | RF08 | ✅ |
-| Relatórios com exportação PDF e XLSX | RF11 | ✅ |
-| Grupo familiar com permissões | RF12 | ✅ |
+| **Login** | Entrar com e-mail e senha | ✅ |
+| **Cadastro** | Criar conta (senha forte, e-mail único) | ✅ |
+| **Início** | Ver receitas, despesas e saldo do mês, gráfico de gastos por categoria, últimas transações e metas | ✅ |
+| **Transações** | Registrar receitas e despesas; a **IA escolhe a categoria** pela descrição; corrigir a categoria (o sistema aprende); excluir | ✅ |
+| **Metas** | Criar metas com valor e prazo, ver quanto guardar por mês e ir guardando dinheiro | ✅ |
 
 ## Como executar
 
-Pré-requisitos: **JDK 17+** e **Maven 3.8+**.
+Precisa ter instalado: **Java 17 ou mais novo** e **Maven**.
 
 ```bash
-mvn package            # compila, roda os testes e gera target/finia.jar
-java -jar target/finia.jar
+mvn package                  # compila, roda os testes e gera target/finia.jar
+java -jar target/finia.jar   # liga o sistema
 ```
 
-Acesse **http://localhost:8080** e entre com a conta de demonstração:
+Abra **http://localhost:8080** e entre com a conta de teste:
 
 - e-mail: `demo@finia.com`
 - senha: `Demo@1234`
 
-Na primeira execução o banco `./data/finia.mv.db` é criado e populado com seis meses de dados fictícios.
-Para recomeçar do zero, apague a pasta `data/`.
+Deixe o terminal aberto enquanto usa. Para desligar, aperte **Ctrl+C**.
 
-Para usar MySQL em vez de H2, defina `FINIA_DB_URL`, `FINIA_DB_USER` e `FINIA_DB_PASS`
-(o script `src/main/resources/schema.sql` é compatível).
+Na primeira execução o banco `data/finia_simples.mv.db` é criado com dados de exemplo
+(dois meses de transações e três metas). Para começar do zero, apague a pasta `data`.
 
-## Arquitetura
+## Como o código está organizado
 
 ```
-front-end (resources/static)  ->  controllers (API REST/JSON)  ->  services (regras)  ->  repositories (JDBC)  ->  H2
+Tela (HTML/JS)  ->  Controller  ->  Service  ->  Repository  ->  Banco H2
 ```
 
-- `controller/` – rotas da API, uma classe por tela
-- `service/` – regras de negócio (categorizador, importação, metas, orçamentos, alertas, relatórios…)
-- `repository/` – acesso a dados com SQL parametrizado
-- `model/` – entidades do domínio (records Java)
-- `infra/` – servidor HTTP, roteador, sessões, JSON, conexão com o banco e dados iniciais
-- `export/` – geradores de PDF e XLSX sem bibliotecas externas
+```
+src/main/java/br/ucsal/finia/
+├── FinIaApplication.java     liga tudo e sobe o servidor
+├── controller/               recebe as requisições de cada tela (Auth, Inicio, Transacao, Meta)
+├── service/                  regras de negócio (cadastro, IA de categorias, metas, resumo)
+├── repository/               SQL de cada tabela
+├── model/                    Usuario, Categoria, Transacao, Meta
+├── infra/                    servidor HTTP, sessões, JSON, banco e dados de exemplo
+└── util/SenhaUtil.java       hash seguro da senha
+src/main/resources/
+├── schema.sql                criação das 4 tabelas
+└── static/                   telas: index, cadastro, inicio, transacoes, metas
+```
 
 ![Arquitetura](docs/arquitetura.png)
 
+## Como a "IA" escolhe a categoria
+
+1. **Aprendizado:** se você já corrigiu uma transação com a mesma descrição, usa a sua escolha.
+2. **Palavras-chave:** procura palavras conhecidas (ex.: `UBER` → Transporte, `IFOOD` → Alimentação).
+   Vence a que aparece primeiro na descrição; empatando, a mais longa (`MERCADO LIVRE` ganha de `MERCADO`).
+3. **Nada encontrado:** vai para *Outros* (despesa) ou *Outras receitas* (receita).
+
+O código está em `service/CategorizadorService.java`.
+
 ## Banco de dados
 
-12 tabelas — ver `src/main/resources/schema.sql` e o diagrama em `docs/der.png`.
+4 tabelas: `usuario`, `categoria`, `transacao` e `meta` (ver `src/main/resources/schema.sql` e `docs/der.png`).
+
+![DER](docs/der.png)
+
+Para olhar o banco por dentro com o sistema ligado, abra outro terminal na pasta do projeto e rode
+`java -cp target/finia.jar org.h2.tools.Console`. Na tela do H2 use:
+
+- JDBC URL: `jdbc:h2:file:./data/finia_simples;AUTO_SERVER=TRUE`
+- User Name: `sa` · Password: (vazio)
 
 ## Testes
 
-`mvn test` executa 15 testes (unitários e de integração com H2 em memória) que verificam os
-critérios de aceitação de RF01, RF02, RF03, RF04, RF05, RF09, RF10 e RF12.
+`mvn test` roda 15 testes JUnit 5 com banco H2 em memória: cadastro, login, categorização automática,
+aprendizado com correções, validações das transações, resumo do mês e cálculo das metas.
 
 ## Documentação
 
-- `docs/historias-de-usuario.md` – histórias de usuário e critérios de aceitação
+- `docs/historias-de-usuario.md` – histórias de usuário com critérios de aceitação
+- `docs/api.md` – rotas da API
 - `docs/roteiro-entrevistas.md` – roteiro das entrevistas com usuários
-- `docs/api.md` – endpoints da API
-- Quadro do processo no Trello: https://trello.com/b/NL43b6Hb/finia-processo-de-desenvolvimento
-
-## Limitações conhecidas
-
-- A conexão Open Finance é simulada (registro do consentimento); a integração real exige credenciamento.
-- O envio de e-mail e de notificações push é simulado dentro do sistema.
-- O "modelo de IA" é um classificador por palavras-chave ponderadas + aprendizado com as correções do usuário.
+- Trello: https://trello.com/b/NL43b6Hb/finia-processo-de-desenvolvimento
