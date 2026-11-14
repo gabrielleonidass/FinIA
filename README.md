@@ -1,6 +1,8 @@
 # FinIA – Controle de finanças pessoais com categorização automática
 
 Projeto acadêmico (UCSAL, 2026) feito a partir da documentação de requisitos do FinIA.
+
+**Autores:** Gabriel Oliveira Leônidas e Tiago Aragão · **Professor:** Elton Figueiredo da Silva
 Back-end em **Java 17**, front-end em **HTML, CSS e JavaScript** e banco de dados **H2** integrado.
 
 ## O que o sistema faz
