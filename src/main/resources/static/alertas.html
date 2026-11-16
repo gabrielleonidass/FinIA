@@ -24,6 +24,14 @@
     <div class="cartao">
       <h2>O que você quer receber</h2>
       <ul class="lista-simples" id="prefs"></ul>
+      <h2 style="margin-top:18px">Como os alertas são calculados</h2>
+      <ul class="lista-simples">
+        <li><span><strong>Gasto fora do normal:</strong> quando o gasto de uma categoria passa de 3 vezes a média dela
+          (200% a mais). A média considera todos os gastos da categoria nos últimos 3 meses.
+          Ex.: média de Lazer R$ 100,00 → alerta acima de R$ 300,00.</span></li>
+        <li><span><strong>Orçamento:</strong> ao chegar em 80% e em 100% do limite da categoria.</span></li>
+        <li><span><strong>Fatura:</strong> um aviso, 3 dias antes do vencimento.</span></li>
+      </ul>
     </div>
   </section>
 </main>
@@ -32,9 +40,9 @@
   avisoPrototipo('RF08', 'Os alertas abaixo são exemplos. O envio real por notificação ou e-mail fica para a próxima versão.');
 
   let alertas = [
-    { icone: '⚠️', titulo: 'Gasto fora do normal', texto: 'R$ 386,75 no Supermercado Assaí, bem acima da sua média nesse lugar.', quando: 'hoje', lido: false },
+    { icone: '⚠️', titulo: 'Gasto fora do normal em Lazer', texto: 'Você gastou R$ 320,00 em Lazer. A sua média dos últimos 3 meses é R$ 100,00: o alerta vale para gastos acima de R$ 300,00 (200% a mais).', quando: 'hoje', lido: false },
     { icone: '📊', titulo: 'Orçamento quase no limite', texto: 'Você já usou 85% do orçamento de Alimentação deste mês.', quando: 'ontem', lido: false },
-    { icone: '💳', titulo: 'Fatura vence em 3 dias', texto: 'Fatura do Nubank (R$ 842,35) vence no dia 15.', quando: 'há 2 dias', lido: false },
+    { icone: '💳', titulo: 'Fatura vence em 3 dias', texto: 'Fatura do Nubank (R$ 842,35) vence no dia 15. Este aviso é enviado uma única vez, 3 dias antes do vencimento.', quando: 'há 2 dias', lido: false },
     { icone: '🎯', titulo: 'Meta em risco', texto: 'No ritmo atual, a Reserva de emergência vai atrasar 2 meses.', quando: 'há 5 dias', lido: true },
     { icone: '✅', titulo: 'Meta concluída', texto: 'Parabéns! Você completou a meta Notebook novo.', quando: 'há 1 semana', lido: true },
   ];

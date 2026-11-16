@@ -12,22 +12,22 @@ Back-end em **Java 17**, front-end em **HTML, CSS e JavaScript** e banco de dado
 | Tela | O que dá para fazer |
 |---|---|
 | **Login** | Entrar com e-mail e senha |
-| **Cadastro** | Criar conta (senha forte, e-mail único) |
-| **Início** | Ver receitas, despesas e saldo do mês, gráfico de gastos por categoria, últimas transações e metas |
-| **Transações** | Registrar receitas e despesas; a **IA escolhe a categoria** pela descrição; corrigir a categoria (o sistema aprende); excluir |
-| **Metas** | Criar metas com valor e prazo, ver quanto guardar por mês e ir guardando dinheiro |
+| **Cadastro** | Criar conta com nome, e-mail, CPF e senha (senha forte, CPF válido, e-mail e CPF únicos) |
+| **Início** | Ver receitas, despesas e saldo do mês, dos últimos 3 ou 12 meses ou de um período personalizado, gráfico de gastos por categoria, últimas transações e metas |
+| **Transações** | Registrar receitas e despesas; a **IA escolhe a categoria** pela descrição e mostra a confiança (abaixo de 70% pede revisão); corrigir a categoria; depois de 3 correções seguidas do mesmo estabelecimento, o sistema pergunta se deve criar uma regra; excluir |
+| **Metas** | Criar metas com valor, prazo e rendimento esperado (opcional), ver quanto guardar por mês e ir guardando dinheiro |
 
 **Telas de protótipo** (front-end completo, com uma faixa amarela indicando que são protótipo):
 
 | Tela | Requisito | Como funciona |
 |---|---|---|
-| **Importar extrato** | RF02 | Lê um CSV no navegador, mostra as linhas com erro e salva as válidas pela API de transações; Open Finance ilustrativo |
-| **Contas e cartões** | RF10 | Contas de exemplo; criar, renomear, desativar e reativar (só na tela) |
-| **Orçamentos** | RF09 | Gastos reais do banco; limites por categoria guardados no navegador; alerta em 80% e estouro em 100% |
-| **Simulação "E se"** | RF06 | Corte de gastos e renda extra, calculado no navegador sobre os gastos e metas reais |
-| **Alertas** | RF08 | Alertas de exemplo e preferências por tipo e canal |
-| **Relatórios** | RF11 | Números reais do mês, comparação com o mês anterior, PDF pela impressão e Excel em CSV |
-| **Grupo familiar** | RF12 | Membros de exemplo, convite e permissões (só na tela) |
+| **Importar extrato** | RF02 | Lê CSV (com escolha de colunas) e OFX no navegador, aponta a linha e o motivo de cada erro, ignora duplicadas e salva as válidas pela API de transações; Open Finance ilustrativo, com consentimento |
+| **Contas e cartões** | RF10 | Contas de exemplo; criar, renomear, desativar (pausa a sincronização), remover (mantém o histórico) e pagar fatura como transferência (só na tela) |
+| **Orçamentos** | RF09 | Orçamento individual ou do grupo familiar; gastos reais do banco; limites guardados no navegador, valem todo mês e não acumulam; alerta em 80% e estouro em 100% |
+| **Simulação "E se"** | RF06 | Corte de gastos sobre o período escolhido (mês atual por padrão) e renda extra; "Aplicar cenário" cria um orçamento com o novo limite |
+| **Alertas** | RF08 | Alertas de exemplo, preferências por tipo e canal e as regras de cálculo (gasto 200% acima da média de 3 meses, fatura 3 dias antes) |
+| **Relatórios** | RF11 | Relatórios mensal, trimestral e anual com números reais, comparação com o período anterior, PDF pela impressão e Excel (.xlsx) |
+| **Grupo familiar** | RF12 | Membros de exemplo, convite com aceite, permissões item por item e contas compartilhadas escolhidas por cada membro (só na tela) |
 
 ## Como executar
 
@@ -50,38 +50,46 @@ Na primeira execução o banco `data/finia_simples.mv.db` é criado com dados de
 
 ## Como o código está organizado
 
-```
-Tela (HTML/JS)  ->  Controller  ->  Service  ->  Repository  ->  Banco H2
-```
+São 7 classes Java, todas na mesma pasta (`src/main/java/br/ucsal/finia/`). Cada tela tem a sua classe,
+com as rotas, as regras e o SQL juntos:
+
+| Classe | O que faz |
+|---|---|
+| `FinIA.java` | liga o sistema: cria o banco, os dados de exemplo e as rotas |
+| `Usuarios.java` | Login e Cadastro: senha forte, CPF válido, hash da senha |
+| `Transacoes.java` | Transações (cadastrar, corrigir categoria, regra após 3 correções) e o resumo da tela Início |
+| `Categorizador.java` | a "IA" que escolhe a categoria e calcula a confiança |
+| `Metas.java` | Metas: criar, guardar dinheiro e calcular quanto guardar por mês |
+| `Web.java` | servidor web: entrega as telas, chama as rotas, confere o login e responde em JSON |
+| `Banco.java` | conexão com o H2 e os comandos SQL (cada linha do resultado vira um mapa coluna → valor) |
 
 ```
-src/main/java/br/ucsal/finia/
-├── FinIaApplication.java     liga tudo e sobe o servidor
-├── controller/               recebe as requisições de cada tela (Auth, Inicio, Transacao, Meta)
-├── service/                  regras de negócio (cadastro, IA de categorias, metas, resumo)
-├── repository/               SQL de cada tabela
-├── model/                    Usuario, Categoria, Transacao, Meta
-├── infra/                    servidor HTTP, sessões, JSON, banco e dados de exemplo
-└── util/SenhaUtil.java       hash seguro da senha
 src/main/resources/
-├── schema.sql                criação das 4 tabelas
-└── static/                   telas: index, cadastro, inicio, transacoes, metas
+├── schema.sql      criação das 5 tabelas
+└── static/         as 12 telas (HTML, CSS e JavaScript)
 ```
+
+O caminho de um pedido: a tela chama, por exemplo, `GET /api/metas` → `Web` confere o login e acha a rota →
+`Metas` busca no `Banco` → a resposta volta em JSON para a tela.
 
 ![Arquitetura](docs/arquitetura.png)
 
 ## Como a "IA" escolhe a categoria
 
-1. **Aprendizado:** se você já corrigiu uma transação com a mesma descrição, usa a sua escolha.
+1. **Regra do usuário:** depois de 3 correções seguidas do mesmo estabelecimento, o sistema pergunta se deve
+   criar uma regra. Com a regra aceita, usa a escolha do usuário (confiança de 98%).
 2. **Palavras-chave:** procura palavras conhecidas (ex.: `UBER` → Transporte, `IFOOD` → Alimentação).
    Vence a que aparece primeiro na descrição; empatando, a mais longa (`MERCADO LIVRE` ganha de `MERCADO`).
-3. **Nada encontrado:** vai para *Outros* (despesa) ou *Outras receitas* (receita).
+   Confiança de 90%, ou 60% se a descrição combina com categorias diferentes.
+3. **Nada encontrado:** vai para *Outros* (despesa) ou *Outras receitas* (receita), com 30%.
 
-O código está em `service/CategorizadorService.java`.
+Abaixo de 70% de confiança a transação aparece com o selo **Revisar**.
+
+O código está em `Categorizador.java`.
 
 ## Banco de dados
 
-4 tabelas: `usuario`, `categoria`, `transacao` e `meta` (ver `src/main/resources/schema.sql` e `docs/der.png`).
+5 tabelas: `usuario`, `categoria`, `transacao`, `meta` e `regra_categoria` (ver `src/main/resources/schema.sql` e `docs/der.png`).
 
 ![DER](docs/der.png)
 
@@ -93,8 +101,12 @@ Para olhar o banco por dentro com o sistema ligado, abra outro terminal na pasta
 
 ## Testes
 
-`mvn test` roda 15 testes JUnit 5 com banco H2 em memória: cadastro, login, categorização automática,
-aprendizado com correções, validações das transações, resumo do mês e cálculo das metas.
+`mvn test` roda 20 testes JUnit 5 com banco H2 em memória: cadastro (CPF e senha), login, categorização automática
+e confiança, regra criada depois de 3 correções, validações das transações, resumo do mês e de um período e cálculo
+das metas (com e sem rendimento).
+
+O limite mínimo de confiança da IA começa em 70% e pode ser ajustado sem mudar o código, pela variável de ambiente
+`FINIA_LIMIAR_CONFIANCA` (ex.: `FINIA_LIMIAR_CONFIANCA=80`).
 
 ## Documentação
 

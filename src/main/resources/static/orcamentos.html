@@ -13,8 +13,13 @@
       <h1>Orçamentos do mês</h1>
       <p class="subtitulo">Defina um limite para cada categoria e veja quanto já gastou.</p>
     </div>
-    <div class="campo"><label for="mes">Mês</label><input type="month" id="mes"></div>
+    <div class="filtros">
+      <div class="campo"><label for="tipo">Orçamento</label>
+        <select id="tipo"><option value="individual">Individual (só meu)</option><option value="familia">Do grupo familiar</option></select></div>
+      <div class="campo"><label for="mes">Mês</label><input type="month" id="mes"></div>
+    </div>
   </div>
+  <p class="dica" id="dica-tipo"></p>
 
   <section class="grade grade-3 espaco">
     <div class="cartao numero"><small>Total orçado</small><strong id="orcado">-</strong></div>
@@ -27,7 +32,8 @@
       <thead><tr><th>Categoria</th><th>Limite (R$)</th><th style="width:35%">Consumo</th><th class="valor">Gasto</th><th>Situação</th></tr></thead>
       <tbody id="linhas"></tbody>
     </table></div>
-    <p class="dica" style="margin-top:10px">Em alerta a partir de 80% do limite. Estourado acima de 100%.</p>
+    <p class="dica" style="margin-top:10px">Em alerta a partir de 80% do limite. Estourado acima de 100%.
+      O limite vale para todos os meses até você mudar. O que sobra de um mês não passa para o seguinte: cada mês começa do zero.</p>
   </section>
 </main>
 <script src="/js/app.js"></script>
@@ -35,8 +41,18 @@
   avisoPrototipo('RF09', 'Os gastos vêm do banco de dados (mesmos números da tela Início). Os limites ficam salvos só neste navegador.');
 
   const PADRAO = { 'Alimentação': 500, 'Transporte': 250, 'Moradia': 1500, 'Saúde': 150, 'Lazer': 200, 'Educação': 100, 'Compras': 300, 'Outros': 150 };
-  let limites = { ...PADRAO };
-  try { Object.assign(limites, JSON.parse(localStorage.getItem('finia-limites') || '{}')); } catch (e) { /* sem armazenamento */ }
+  let limites = {};
+  const campoTipo = document.getElementById('tipo');
+  const chave = () => campoTipo.value === 'familia' ? 'finia-limites-familia' : 'finia-limites';
+
+  /** Cada tipo de orçamento (individual ou do grupo familiar) tem seus próprios limites. */
+  function lerLimites() {
+    limites = { ...PADRAO };
+    try { Object.assign(limites, JSON.parse(localStorage.getItem(chave()) || '{}')); } catch (e) { /* sem armazenamento */ }
+    document.getElementById('dica-tipo').textContent = campoTipo.value === 'familia'
+      ? 'Orçamento da casa: definido pelo administrador do grupo familiar ou por quem tem permissão de editar.'
+      : 'Orçamento individual: só você vê e edita.';
+  }
 
   const campoMes = document.getElementById('mes');
   let gastos = {};
@@ -76,7 +92,7 @@
   document.getElementById('linhas').onchange = e => {
     if (!e.target.dataset.cat) return;
     limites[e.target.dataset.cat] = Number(e.target.value);
-    try { localStorage.setItem('finia-limites', JSON.stringify(limites)); } catch (err) { /* sem armazenamento */ }
+    try { localStorage.setItem(chave(), JSON.stringify(limites)); } catch (err) { /* sem armazenamento */ }
     desenhar();
   };
 
@@ -84,6 +100,8 @@
     await montarTopo('orcamentos');
     campoMes.value = mesAtual();
     campoMes.onchange = carregar;
+    campoTipo.onchange = () => { lerLimites(); desenhar(); };
+    lerLimites();
     carregar();
   })();
 </script>

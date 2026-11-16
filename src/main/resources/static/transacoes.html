@@ -50,7 +50,14 @@
     </form>
   </section>
 
-  <!-- 2) Lista do mês -->
+  <!-- 2) Regras criadas pelo usuário (RF04) -->
+  <section class="cartao espaco" id="area-regras" hidden>
+    <h2>Minhas regras de categoria</h2>
+    <p class="dica">Criadas depois de 3 correções seguidas do mesmo estabelecimento.</p>
+    <ul class="lista-simples" id="regras"></ul>
+  </section>
+
+  <!-- 3) Lista do mês -->
   <section class="cartao">
     <div class="cabecalho" style="margin-bottom:8px">
       <h2 style="margin:0" id="titulo-lista">Transações do mês</h2>
@@ -94,7 +101,9 @@
     espera = setTimeout(async () => {
       const s = await api('/api/transacoes/sugestao?tipo=' + campoTipo.value +
         '&descricao=' + encodeURIComponent(campoDescricao.value));
-      if (s.categoria) dica.innerHTML = `🤖 A IA vai classificar como <strong>${esc(s.categoria.nome)}</strong>. ${esc(s.motivo)}`;
+      if (s.categoria) dica.innerHTML = `🤖 A IA vai classificar como <strong>${esc(s.categoria.nome)}</strong>
+        (confiança de <strong>${s.confianca}%</strong>). ${esc(s.motivo)}
+        ${s.revisar ? `<span class="selo selo-alerta">Abaixo de ${s.limiar}%: confira a categoria</span>` : ''}`;
     }, 300);
   }
 
@@ -113,7 +122,8 @@
               <select data-id="${t.id}" class="trocar-categoria" aria-label="Categoria de ${esc(t.descricao)}">
                 ${opcoesDeCategoria(t.tipo, t.categoria.id)}
               </select>
-              ${t.categoriaAutomatica ? '<span class="ia" title="Categoria escolhida automaticamente">IA</span>' : ''}
+              ${t.categoriaAutomatica ? `<span class="ia" title="Categoria escolhida automaticamente">IA ${t.confianca ?? ''}%</span>` : ''}
+              ${t.revisar ? '<span class="selo selo-alerta" title="Confiança abaixo do limite mínimo">Revisar</span>' : ''}
             </span>
           </td>
           <td class="valor ${t.tipo === 'RECEITA' ? 'verde' : 'laranja'}">${t.tipo === 'RECEITA' ? '+' : '-'} ${moeda(t.valor)}</td>
@@ -127,7 +137,8 @@
     const dados = dadosDoForm(form);
     if (!dados.categoriaId) delete dados.categoriaId; // vazio = deixa a IA escolher
     try {
-      await api('/api/transacoes', 'POST', dados);
+      const salva = await api('/api/transacoes', 'POST', dados);
+      await perguntarRegra(salva.sugestaoRegra);
       document.getElementById('erro').textContent = '';
       form.reset();
       document.getElementById('data').value = hoje();
@@ -142,8 +153,36 @@
   // Trocar categoria ou excluir direto na tabela
   document.getElementById('lista').addEventListener('change', async (e) => {
     if (!e.target.classList.contains('trocar-categoria')) return;
-    await api(`/api/transacoes/${e.target.dataset.id}/categoria`, 'PUT', { categoriaId: e.target.value });
+    const t = await api(`/api/transacoes/${e.target.dataset.id}/categoria`, 'PUT', { categoriaId: e.target.value });
+    await perguntarRegra(t.sugestaoRegra);
     carregarLista();
+  });
+
+  /** RF04: depois de 3 correções seguidas do mesmo estabelecimento, pergunta antes de criar a regra. */
+  async function perguntarRegra(s) {
+    if (!s) return;
+    const aceitar = confirm(`Você classificou "${s.padrao}" como ${s.categoria.nome} ${s.correcoes} vezes seguidas.\n\n` +
+      `Quer criar uma regra para que as próximas transações desse estabelecimento já entrem como ${s.categoria.nome}?`);
+    await api('/api/regras', 'POST', { padrao: s.padrao, categoriaId: s.categoria.id, aceitar });
+    aviso(aceitar ? 'Regra criada.' : 'Tudo bem, não vou perguntar de novo para este estabelecimento.');
+    carregarRegras();
+  }
+
+  async function carregarRegras() {
+    const regras = await api('/api/regras');
+    document.getElementById('area-regras').hidden = regras.length === 0;
+    document.getElementById('regras').innerHTML = regras.map(r => `
+      <li><span><strong>${esc(r.padrao)}</strong> →
+        <span class="etiqueta"><span class="bolinha" style="background:${r.cor}"></span>${esc(r.categoria)}</span></span>
+        <button class="botao botao-perigo botao-pequeno" data-regra="${r.id}">Excluir regra</button></li>`).join('');
+  }
+
+  document.getElementById('regras').addEventListener('click', async (e) => {
+    const id = e.target.dataset.regra;
+    if (id && confirm('Excluir esta regra?')) {
+      await api('/api/regras/' + id, 'DELETE');
+      carregarRegras();
+    }
   });
   document.getElementById('lista').addEventListener('click', async (e) => {
     const id = e.target.dataset.excluir;
@@ -164,6 +203,7 @@
     campoDescricao.oninput = mostrarSugestao;
     campoMes.onchange = carregarLista;
     carregarLista();
+    carregarRegras();
   })();
 </script>
 </body>

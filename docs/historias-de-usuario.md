@@ -17,11 +17,12 @@ de transição (RF01, RF02, RF03, RF04, RF05 e RF07). Pontos em escala Fibonacci
 
 ## US01 – Criar conta (RF01)
 
-**Como** pessoa que quer organizar o dinheiro, **quero** criar uma conta com nome, e-mail e senha, **para** ter meus dados guardados só para mim.
+**Como** pessoa que quer organizar o dinheiro, **quero** criar uma conta com nome, e-mail, CPF e senha, **para** ter meus dados guardados só para mim.
 
 **Critérios de aceitação**
 
-- Nome, e-mail e senha são obrigatórios
+- Nome, e-mail, CPF e senha são obrigatórios
+- O CPF precisa ser válido (dígitos verificadores) e não pode se repetir
 - E-mail já cadastrado é recusado com a mensagem "Este e-mail já está cadastrado"
 - Senha precisa ter 8+ caracteres, letra maiúscula, número e símbolo
 - A senha é salva com hash PBKDF2 + salt, nunca em texto puro
@@ -31,8 +32,8 @@ de transição (RF01, RF02, RF03, RF04, RF05 e RF07). Pontos em escala Fibonacci
 
 - [x] Tela de cadastro
 - [x] Tabela usuario
-- [x] UsuarioService.cadastrar
-- [x] Testes de senha fraca e e-mail repetido
+- [x] Usuarios.cadastrar
+- [x] Testes de senha fraca, CPF inválido e e-mail repetido
 
 ## US02 – Entrar e sair do sistema (RF01)
 
@@ -66,7 +67,7 @@ de transição (RF01, RF02, RF03, RF04, RF05 e RF07). Pontos em escala Fibonacci
 
 - [x] Tela de transações
 - [x] Tabela transacao
-- [x] TransacaoService
+- [x] Transacoes.registrar
 - [x] Filtro por mês
 
 ## US04 – Categorização automática (IA) (RF03)
@@ -78,32 +79,36 @@ de transição (RF01, RF02, RF03, RF04, RF05 e RF07). Pontos em escala Fibonacci
 - "Uber" vira Transporte, "iFood" vira Alimentação, "Netflix" vira Lazer
 - Se duas palavras combinam, vence a que aparece primeiro; empatando, a mais longa ("Mercado Livre" = Compras)
 - Sem palavra conhecida, vai para "Outros" (despesa) ou "Outras receitas" (receita)
-- Enquanto digita, a tela mostra qual categoria a IA vai escolher e por quê
-- Transações classificadas pela IA aparecem com o selo "IA"
+- Enquanto digita, a tela mostra qual categoria a IA vai escolher, por quê e com qual confiança (%)
+- Transações classificadas pela IA aparecem com o selo "IA" e a confiança
+- Abaixo de 70% de confiança aparece o selo "Revisar" (limite ajustável por FINIA_LIMIAR_CONFIANCA)
 
 **Tarefas**
 
-- [x] CategorizadorService
+- [x] Categorizador
 - [x] Endpoint de sugestão
 - [x] Dica na tela
 - [x] Testes de palavras-chave
 
 ## US05 – Corrigir categoria e o sistema aprender (RF04)
 
-**Como** usuário, **quero** trocar a categoria quando a IA errar, **para** que o sistema acerte da próxima vez.
+**Como** usuário, **quero** trocar a categoria quando a IA errar, **para** que o sistema acerte nas próximas vezes.
 
 **Critérios de aceitação**
 
 - A categoria pode ser trocada direto na lista de transações
 - Só aparecem categorias do mesmo tipo (receita ou despesa)
-- Depois da correção, uma nova transação com a mesma descrição já vem na categoria escolhida
+- Depois de 3 correções seguidas do mesmo estabelecimento (mesmo com números diferentes, ex.: "UBER *TRIP 123"), o sistema pergunta se deve criar uma regra
+- Só com a regra aceita as próximas transações já vêm na categoria escolhida; se o usuário recusar, não pergunta de novo
+- As regras aparecem na tela e podem ser excluídas
 - A correção aparece na hora no resumo e no gráfico
 
 **Tarefas**
 
 - [x] PUT /api/transacoes/{id}/categoria
-- [x] Consulta da última correção
-- [x] Teste de aprendizado
+- [x] Tabela regra_categoria e rotas /api/regras
+- [x] Pergunta na tela (confirmação)
+- [x] Teste das 3 correções
 
 ## US06 – Resumo do mês (tela Início) (RF07)
 
@@ -114,12 +119,12 @@ de transição (RF01, RF02, RF03, RF04, RF05 e RF07). Pontos em escala Fibonacci
 - Mostra receitas, despesas e saldo do mês (saldo negativo em laranja)
 - Gráfico de rosca com os gastos por categoria
 - Mostra as 5 últimas transações e o progresso das metas
-- É possível escolher outro mês
+- É possível ver o mês, os últimos 3 meses, os últimos 12 meses ou um período personalizado
 
 **Tarefas**
 
 - [x] Tela Início
-- [x] InicioService
+- [x] Transacoes.resumo
 - [x] Consultas SUM e GROUP BY
 - [x] Gráfico com Chart.js
 
@@ -132,6 +137,7 @@ de transição (RF01, RF02, RF03, RF04, RF05 e RF07). Pontos em escala Fibonacci
 - Nome, valor maior que zero e prazo futuro são obrigatórios
 - Mostra a % concluída, quanto falta e quanto guardar por mês até o prazo
 - Ex.: faltando R$ 2.400,00 em 6 meses, sugere R$ 400,00 por mês
+- Rendimento esperado (% ao mês) opcional, digitado pelo usuário, entra no cálculo
 - Ao chegar em 100% a meta aparece como "Concluída"
 - É possível excluir uma meta
 
@@ -139,7 +145,7 @@ de transição (RF01, RF02, RF03, RF04, RF05 e RF07). Pontos em escala Fibonacci
 
 - [x] Tela de metas
 - [x] Tabela meta
-- [x] MetaService
+- [x] Metas
 - [x] Cálculo do valor por mês
 
 ## Backlog (próximas versões)

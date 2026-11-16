@@ -19,11 +19,24 @@
   <section class="cartao espaco">
     <h2>1. Escolha o arquivo do extrato</h2>
     <label class="area-arquivo" id="area" for="arquivo">
-      <strong>Arraste o arquivo CSV aqui</strong> ou clique para escolher<br>
-      <small>Formato: data;descrição;valor (ex.: 14/11/2026;Uber;-24,90). Valor negativo = despesa.</small>
+      <strong>Arraste o arquivo CSV ou OFX aqui</strong> ou clique para escolher<br>
+      <small>Funciona com extratos de bancos diferentes. No CSV, o FinIA precisa achar a data, a descrição e o valor
+        (valor negativo = despesa); se as colunas tiverem outros nomes, você indica quais são.</small>
     </label>
-    <input type="file" id="arquivo" accept=".csv,.txt" hidden>
-    <p class="dica" style="margin-top:10px">Não tem um arquivo? <a href="#" id="exemplo">Usar um extrato de exemplo</a>.</p>
+    <input type="file" id="arquivo" accept=".csv,.txt,.ofx" hidden>
+    <p class="dica" style="margin-top:10px">Não tem um arquivo? Use um exemplo:
+      <a href="#" id="exemplo-csv">CSV</a> · <a href="#" id="exemplo-ofx">OFX</a>.</p>
+  </section>
+
+  <section class="cartao espaco" id="mapeamento" hidden>
+    <h2>Quais colunas são essas?</h2>
+    <p class="subtitulo">Não reconhecemos todas as colunas do seu CSV. Indique onde estão a data, a descrição e o valor.</p>
+    <div class="linha-form" style="grid-template-columns: repeat(3, minmax(0,1fr)) auto">
+      <div class="campo"><label for="col-data">Data</label><select id="col-data"></select></div>
+      <div class="campo"><label for="col-descricao">Descrição</label><select id="col-descricao"></select></div>
+      <div class="campo"><label for="col-valor">Valor</label><select id="col-valor"></select></div>
+      <button class="botao" id="aplicar-colunas">Continuar</button>
+    </div>
   </section>
 
   <section class="cartao" id="previa" hidden>
@@ -40,30 +53,87 @@
 </main>
 <script src="/js/app.js"></script>
 <script>
-  avisoPrototipo('RF02', 'A leitura do arquivo é feita no navegador. As linhas válidas são salvas pela mesma API da tela Transações, e a IA escolhe a categoria de cada uma. A conexão Open Finance é só ilustrativa.');
+  avisoPrototipo('RF02', 'A leitura de CSV e OFX, a validação e a checagem de duplicadas são feitas no navegador. As linhas válidas são salvas pela mesma API da tela Transações, e a IA escolhe a categoria de cada uma. A conexão Open Finance é só ilustrativa.');
 
-  const EXEMPLO = `data;descricao;valor
+  const EXEMPLO_CSV = `Data;Histórico;Valor (R$)
 02/11/2026;Padaria Pão Quente;-12,50
-03/11/2026;Uber;-18,90
+03/11/2026;Uber *TRIP 4821;-18,90
+03/11/2026;Uber *TRIP 4821;-18,90
 04/11/2026;Pix recebido João;150,00
 31/02/2026;Data inválida;-10,00
 05/11/2026;Spotify;-21,90
 06/11/2026;Posto Ipiranga;abc`;
 
-  let validas = [];
+  const EXEMPLO_OFX = `OFXHEADER:100
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261107120000<TRNAMT>-35.40<MEMO>Farmacia Drogasil</STMTTRN>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261108120000<TRNAMT>-55.90<MEMO>Netflix</STMTTRN>
+<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261109120000<TRNAMT>300.00<MEMO>Freela site</STMTTRN>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261109120000<TRNAMT>-55.90<MEMO>Netflix</STMTTRN>
+</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
 
-  /** Lê o CSV linha por linha e separa o que é válido do que tem erro. */
+  const NOMES = {
+    data: ['data', 'date', 'dt', 'data lancamento', 'data do lancamento'],
+    descricao: ['descricao', 'historico', 'lancamento', 'estabelecimento', 'memo', 'description'],
+    valor: ['valor', 'valor (r$)', 'valor r$', 'amount', 'quantia'],
+  };
+  let validas = [];
+  let csvPendente = null;
+
+  const semAcento = t => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+  const numero = t => Number(String(t || '').replace(/\s|R\$/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+
+  // ---------- CSV ----------
   function lerCsv(texto) {
     const linhas = texto.trim().split(/\r?\n/);
-    const resultado = [];
-    linhas.forEach((linha, i) => {
-      if (i === 0 && /data/i.test(linha)) return; // pula o cabeçalho
-      const [data, descricao, valorTxt] = linha.split(';').map(c => (c || '').trim());
-      const erro = validar(data, descricao, valorTxt);
-      const valor = Number((valorTxt || '').replace(/\./g, '').replace(',', '.'));
-      resultado.push({ numero: i + 1, data, descricao, valor, erro });
+    const sep = linhas[0].includes(';') ? ';' : ',';
+    const cabecalho = linhas[0].split(sep).map(c => c.trim());
+    const idx = campo => cabecalho.findIndex(c => NOMES[campo].includes(semAcento(c)));
+    const colunas = { data: idx('data'), descricao: idx('descricao'), valor: idx('valor') };
+    if (Object.values(colunas).some(i => i < 0)) {
+      csvPendente = { linhas, sep, cabecalho };
+      pedirColunas(cabecalho, colunas);
+      return null;
+    }
+    return montarCsv(linhas, sep, colunas);
+  }
+
+  function pedirColunas(cabecalho, sugestao) {
+    document.getElementById('previa').hidden = true;
+    document.getElementById('mapeamento').hidden = false;
+    for (const campo of ['data', 'descricao', 'valor']) {
+      document.getElementById('col-' + campo).innerHTML = cabecalho
+        .map((c, i) => `<option value="${i}" ${i === sugestao[campo] ? 'selected' : ''}>${esc(c || 'Coluna ' + (i + 1))}</option>`).join('');
+    }
+  }
+
+  document.getElementById('aplicar-colunas').onclick = () => {
+    const colunas = {};
+    for (const campo of ['data', 'descricao', 'valor']) colunas[campo] = Number(document.getElementById('col-' + campo).value);
+    document.getElementById('mapeamento').hidden = true;
+    mostrar(montarCsv(csvPendente.linhas, csvPendente.sep, colunas));
+  };
+
+  function montarCsv(linhas, sep, col) {
+    return linhas.slice(1).map((linha, i) => {
+      const c = linha.split(sep).map(x => (x || '').trim());
+      const data = c[col.data], descricao = c[col.descricao], valorTxt = c[col.valor];
+      return { numero: i + 2, data, descricao, valor: numero(valorTxt), erro: validar(data, descricao, valorTxt) };
     });
-    return resultado;
+  }
+
+  // ---------- OFX ----------
+  function lerOfx(texto) {
+    const blocos = texto.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi);
+    if (!blocos) return [{ numero: 1, data: '', descricao: '', valor: NaN, erro: 'Arquivo OFX sem transações (<STMTTRN>)' }];
+    const tag = (b, nome) => ((new RegExp('<' + nome + '>([^<\\r\\n]*)', 'i')).exec(b) || [])[1]?.trim() || '';
+    return blocos.map((b, i) => {
+      const dt = tag(b, 'DTPOSTED');
+      const data = dt.length >= 8 ? `${dt.slice(6, 8)}/${dt.slice(4, 6)}/${dt.slice(0, 4)}` : dt;
+      const descricao = tag(b, 'MEMO') || tag(b, 'NAME');
+      const valorTxt = tag(b, 'TRNAMT');
+      return { numero: i + 1, data, descricao, valor: Number(valorTxt), erro: validar(data, descricao, valorTxt.replace('.', ',')) };
+    });
   }
 
   function validar(data, descricao, valorTxt) {
@@ -72,27 +142,56 @@
     const d = new Date(+m[3], +m[2] - 1, +m[1]);
     if (d.getDate() !== +m[1] || d.getMonth() !== +m[2] - 1) return 'Data que não existe';
     if (!descricao) return 'Descrição vazia';
-    if (isNaN(Number((valorTxt || '').replace(/\./g, '').replace(',', '.'))) || !valorTxt) return 'Valor inválido';
+    if (!valorTxt || isNaN(numero(valorTxt))) return 'Valor inválido';
     return null;
   }
 
-  function mostrar(resultado) {
+  /** Duplicada = mesma data, valor e descrição: só a primeira é importada. Também confere o que já está no FinIA. */
+  async function marcarDuplicadas(resultado) {
+    const chave = (data, desc, valor) => `${data}|${semAcento(desc)}|${Math.abs(valor).toFixed(2)}`;
+    const meses = [...new Set(resultado.filter(r => !r.erro).map(r => r.data.slice(6) + '-' + r.data.slice(3, 5)))];
+    const jaNoFinia = new Set();
+    for (const mes of meses) {
+      (await api('/api/transacoes?mes=' + mes)).forEach(t => jaNoFinia.add(chave(dataBR(t.data), t.descricao, t.valor)));
+    }
+    const vistas = new Set();
+    resultado.forEach(r => {
+      if (r.erro) return;
+      const k = chave(r.data, r.descricao, r.valor);
+      if (jaNoFinia.has(k)) r.erro = 'Duplicada: já está no FinIA';
+      else if (vistas.has(k)) r.erro = 'Duplicada: igual a outra linha do arquivo';
+      else vistas.add(k);
+    });
+    return resultado;
+  }
+
+  async function mostrar(resultado) {
+    if (!resultado) return;
+    resultado = await marcarDuplicadas(resultado);
     validas = resultado.filter(r => !r.erro);
+    const comErro = resultado.length - validas.length;
     document.getElementById('previa').hidden = false;
     document.getElementById('resumo').textContent =
-      `${validas.length} linha(s) válida(s) e ${resultado.length - validas.length} com erro. As linhas com erro não serão importadas.`;
+      `${validas.length} linha(s) válida(s) e ${comErro} recusada(s). As linhas recusadas mostram o número e o motivo, e não serão importadas.`;
     document.getElementById('linhas').innerHTML = resultado.map(r => `
       <tr>
         <td>${r.numero}</td><td>${esc(r.data)}</td><td>${esc(r.descricao)}</td>
         <td class="valor ${r.valor >= 0 ? 'verde' : 'laranja'}">${isNaN(r.valor) ? '-' : moeda(r.valor)}</td>
-        <td>${r.erro ? `<span class="selo selo-erro">${esc(r.erro)}</span>` : '<span class="selo">OK</span>'}</td>
+        <td>${r.erro ? `<span class="selo ${r.erro.startsWith('Duplicada') ? 'selo-alerta' : 'selo-erro'}">Linha ${r.numero}: ${esc(r.erro)}</span>` : '<span class="selo">OK</span>'}</td>
       </tr>`).join('');
     document.getElementById('importar').disabled = validas.length === 0;
   }
 
+  function lerTexto(nome, texto) {
+    document.getElementById('mapeamento').hidden = true;
+    if (/\.ofx$/i.test(nome) || /<OFX>/i.test(texto)) mostrar(lerOfx(texto));
+    else if (/\.(csv|txt)$/i.test(nome)) mostrar(lerCsv(texto));
+    else { aviso('Formato não aceito. Use um arquivo CSV ou OFX.'); }
+  }
+
   function lerArquivo(arquivo) {
     const leitor = new FileReader();
-    leitor.onload = () => mostrar(lerCsv(leitor.result));
+    leitor.onload = () => lerTexto(arquivo.name, leitor.result);
     leitor.readAsText(arquivo, 'UTF-8');
   }
 
@@ -101,7 +200,8 @@
   area.ondragover = e => { e.preventDefault(); area.classList.add('sobre'); };
   area.ondragleave = () => area.classList.remove('sobre');
   area.ondrop = e => { e.preventDefault(); area.classList.remove('sobre'); e.dataTransfer.files[0] && lerArquivo(e.dataTransfer.files[0]); };
-  document.getElementById('exemplo').onclick = e => { e.preventDefault(); mostrar(lerCsv(EXEMPLO)); };
+  document.getElementById('exemplo-csv').onclick = e => { e.preventDefault(); lerTexto('exemplo.csv', EXEMPLO_CSV); };
+  document.getElementById('exemplo-ofx').onclick = e => { e.preventDefault(); lerTexto('exemplo.ofx', EXEMPLO_OFX); };
 
   // Salva cada linha válida pela API de transações (back-end já existente)
   document.getElementById('importar').onclick = async (e) => {
@@ -117,12 +217,23 @@
     document.getElementById('previa').hidden = true;
   };
 
-  document.getElementById('open-finance').onclick = () => abrirModal('Conectar via Open Finance', `
-    <p>Para ler suas transações automaticamente, o FinIA pede o seu consentimento ao banco:</p>
-    <ul><li><strong>Dados:</strong> saldo e extrato (somente leitura)</li>
-        <li><strong>Prazo:</strong> 12 meses, com cancelamento a qualquer momento</li>
-        <li><strong>O FinIA não faz pagamentos nem transferências</strong></li></ul>
-    <p class="subtitulo">Protótipo: a integração real exige credenciamento no Open Finance Brasil.</p>`);
+  document.getElementById('open-finance').onclick = () => {
+    const modal = abrirModal('Conectar via Open Finance', `
+      <p>Para ler suas transações automaticamente, o FinIA pede o seu <strong>consentimento</strong> ao banco:</p>
+      <ul><li><strong>Dados:</strong> saldo e extrato (somente leitura)</li>
+          <li><strong>Prazo:</strong> 12 meses, com cancelamento a qualquer momento</li>
+          <li><strong>O FinIA não faz pagamentos nem transferências</strong></li></ul>
+      <p><strong>Sincronização:</strong> na primeira conexão, as transações dos últimos 90 dias chegam em até 5 minutos.
+        Depois, o FinIA busca as novas uma vez por dia, e você pode atualizar quando quiser.</p>
+      <label style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="consentir" style="width:auto">
+        Li e autorizo o compartilhamento dos dados acima</label>
+      <button class="botao" id="conectar" disabled>Conectar banco</button>
+      <button class="botao botao-claro" id="atualizar">Atualizar agora</button>
+      <p class="subtitulo" style="margin-top:10px">Protótipo: a integração real exige credenciamento no Open Finance Brasil.</p>`);
+    modal.querySelector('#consentir').onchange = ev => modal.querySelector('#conectar').disabled = !ev.target.checked;
+    modal.querySelector('#conectar').onclick = () => aviso('Protótipo: aqui o usuário seria levado ao banco para confirmar.');
+    modal.querySelector('#atualizar').onclick = () => aviso('Protótipo: aqui o FinIA buscaria as transações novas.');
+  };
 
   montarTopo('importar');
 </script>

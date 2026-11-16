@@ -55,7 +55,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>br.ucsal.finia.FinIaApplication</mainClass>
+                            <mainClass>br.ucsal.finia.FinIA</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -71,7 +71,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.3.0</version>
                 <configuration>
-                    <mainClass>br.ucsal.finia.FinIaApplication</mainClass>
+                    <mainClass>br.ucsal.finia.FinIA</mainClass>
                 </configuration>
             </plugin>
         </plugins>

@@ -4,10 +4,11 @@
 
 /** Chama a API do back-end. Se a sessão expirou, volta para o login. */
 async function api(url, metodo = 'GET', dados = null) {
-  const opcoes = { method: metodo, headers: {} };
+  const opcoes = { method: metodo };
   if (dados) {
-    opcoes.headers['Content-Type'] = 'application/json';
-    opcoes.body = JSON.stringify(dados);
+    // Envia como formulário (campo=valor&campo=valor), sem os campos vazios
+    const campos = Object.entries(dados).filter(([, valor]) => valor !== null && valor !== undefined);
+    opcoes.body = new URLSearchParams(campos);
   }
   const resposta = await fetch(url, opcoes);
   const corpo = await resposta.json().catch(() => ({}));

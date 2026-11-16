@@ -16,7 +16,13 @@
   </div>
 
   <section class="cartao espaco">
-    <div class="linha-form" style="grid-template-columns: minmax(0,1.2fr) minmax(0,2fr) minmax(0,1fr)">
+    <div class="linha-form" style="grid-template-columns: minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,2fr) minmax(0,1fr)">
+      <div class="campo"><label for="periodo">Gastos de referência</label>
+        <select id="periodo">
+          <option value="atual">Mês atual</option>
+          <option value="anterior">Mês anterior</option>
+          <option value="3m">Média dos últimos 3 meses</option>
+        </select></div>
       <div class="campo"><label for="categoria">Categoria</label><select id="categoria"></select></div>
       <div class="campo"><label for="corte">Reduzir gastos em <strong id="corte-txt">20%</strong></label>
         <input type="range" id="corte" min="0" max="100" step="5" value="20"></div>
@@ -38,12 +44,33 @@
     </table></div>
     <p class="dica" style="margin-top:10px">Considera que a economia vai toda para a meta, além do valor por mês que você já guardaria.</p>
   </section>
+
+  <section class="cartao" style="margin-top:20px">
+    <h2>Gostou do cenário?</h2>
+    <p>Aplicar o cenário cria um <strong>orçamento</strong> com o novo limite da categoria. Suas transações não mudam.</p>
+    <p class="subtitulo" id="novo-limite"></p>
+    <button class="botao" id="aplicar">Aplicar cenário ao orçamento</button>
+  </section>
 </main>
 <script src="/js/app.js"></script>
 <script>
-  avisoPrototipo('RF06', 'O cálculo é feito no navegador com os seus gastos e metas reais. Nada é alterado no banco.');
+  avisoPrototipo('RF06', 'O cálculo é feito no navegador com os seus gastos e metas reais. Nada é alterado até você confirmar "Aplicar cenário", que grava o novo limite no Orçamento deste navegador.');
 
-  let gastos = [], metas = [];
+  let gastos = [], metas = [], novoLimite = 0;
+
+  /** O corte é calculado sobre os gastos do período escolhido; o padrão é o mês atual. */
+  async function carregarGastos() {
+    const p = $('periodo').value;
+    const anterior = new Date(); anterior.setDate(1); anterior.setMonth(anterior.getMonth() - 1);
+    const mesAnterior = anterior.getFullYear() + '-' + String(anterior.getMonth() + 1).padStart(2, '0');
+    const url = p === '3m' ? '/api/inicio?periodo=3m' : '/api/inicio?mes=' + (p === 'anterior' ? mesAnterior : mesAtual());
+    const r = await api(url);
+    gastos = r.gastosPorCategoria.map(g => ({ ...g, total: p === '3m' ? g.total / 3 : g.total }));
+    const escolhida = $('categoria').value;
+    $('categoria').innerHTML = gastos.map(g => `<option ${g.categoria === escolhida ? 'selected' : ''}>${esc(g.categoria)}</option>`).join('')
+      || '<option>Sem gastos no período</option>';
+    calcular();
+  }
   const $ = id => document.getElementById(id);
 
   function meses(falta, porMes) {
@@ -56,6 +83,8 @@
     const atual = g ? g.total : 0;
     const corte = Number($('corte').value);
     const economia = atual * corte / 100 + Number($('extra').value || 0);
+    novoLimite = Math.round(atual * (100 - corte) / 100);
+    $('novo-limite').textContent = g ? `Novo limite de ${g.categoria}: ${moeda(novoLimite)} por mês (era ${moeda(atual)} de gasto).` : '';
     $('corte-txt').textContent = corte + '%';
     $('atual').textContent = moeda(atual);
     $('economia').textContent = moeda(economia);
@@ -76,11 +105,20 @@
 
   (async () => {
     await montarTopo('simulacao');
-    const [r, m] = await Promise.all([api('/api/inicio'), api('/api/metas')]);
-    gastos = r.gastosPorCategoria; metas = m;
-    $('categoria').innerHTML = gastos.map(g => `<option>${esc(g.categoria)}</option>`).join('') || '<option>Sem gastos no mês</option>';
+    metas = await api('/api/metas');
     ['categoria', 'corte', 'extra'].forEach(id => $(id).oninput = calcular);
-    calcular();
+    $('periodo').onchange = carregarGastos;
+    $('aplicar').onclick = () => {
+      const cat = $('categoria').value;
+      if (!gastos.length) return;
+      if (!confirm(`Criar o orçamento de ${cat} com limite de ${moeda(novoLimite)} por mês?\nNenhuma transação será alterada.`)) return;
+      let limites = {};
+      try { limites = JSON.parse(localStorage.getItem('finia-limites') || '{}'); } catch (e) { /* sem armazenamento */ }
+      limites[cat] = novoLimite;
+      try { localStorage.setItem('finia-limites', JSON.stringify(limites)); } catch (e) { /* sem armazenamento */ }
+      aviso('Orçamento criado. Veja em Orçamentos.');
+    };
+    carregarGastos();
   })();
 </script>
 </body>

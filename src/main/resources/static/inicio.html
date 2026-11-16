@@ -10,20 +10,40 @@
 <main>
   <div class="cabecalho">
     <div>
-      <h1>Resumo do mês</h1>
+      <h1>Resumo</h1>
       <p class="subtitulo" id="titulo-mes"></p>
     </div>
-    <div class="campo">
-      <label for="mes">Mês</label>
-      <input type="month" id="mes">
+    <div class="filtros">
+      <div class="campo">
+        <label for="periodo">Período</label>
+        <select id="periodo">
+          <option value="mes">Mês</option>
+          <option value="3m">Últimos 3 meses</option>
+          <option value="12m">Últimos 12 meses</option>
+          <option value="personalizado">Personalizado</option>
+        </select>
+      </div>
+      <div class="campo" id="campo-mes">
+        <label for="mes">Mês</label>
+        <input type="month" id="mes">
+      </div>
+      <div class="campo" data-personalizado hidden>
+        <label for="de">De</label>
+        <input type="date" id="de">
+      </div>
+      <div class="campo" data-personalizado hidden>
+        <label for="ate">Até</label>
+        <input type="date" id="ate">
+      </div>
     </div>
   </div>
+  <div class="erro" id="erro" role="alert"></div>
 
   <!-- 1) Receitas, despesas e saldo -->
   <section class="grade grade-3 espaco">
     <div class="cartao numero"><small>Receitas</small><strong class="verde" id="receitas">-</strong></div>
     <div class="cartao numero"><small>Despesas</small><strong class="laranja" id="despesas">-</strong></div>
-    <div class="cartao numero"><small>Saldo do mês</small><strong id="saldo">-</strong></div>
+    <div class="cartao numero"><small>Saldo do período</small><strong id="saldo">-</strong></div>
   </section>
 
   <section class="grade grade-2 espaco">
@@ -31,7 +51,7 @@
     <div class="cartao">
       <h2>Para onde foi o dinheiro</h2>
       <div style="position:relative;height:260px"><canvas id="grafico" aria-label="Gastos por categoria"></canvas></div>
-      <p class="vazio" id="sem-gastos" hidden>Nenhuma despesa neste mês.</p>
+      <p class="vazio" id="sem-gastos" hidden>Nenhuma despesa neste período.</p>
     </div>
 
     <!-- 3) Metas -->
@@ -60,9 +80,33 @@
   let grafico = null;
   const campoMes = document.getElementById('mes');
 
+  const campoPeriodo = document.getElementById('periodo');
+  const campoDe = document.getElementById('de');
+  const campoAte = document.getElementById('ate');
+
+  /** Monta a URL conforme o filtro escolhido (RF07). */
+  function urlDoResumo() {
+    const p = campoPeriodo.value;
+    if (p === 'mes') return '/api/inicio?periodo=mes&mes=' + campoMes.value;
+    if (p === 'personalizado') return `/api/inicio?periodo=personalizado&de=${campoDe.value}&ate=${campoAte.value}`;
+    return '/api/inicio?periodo=' + p;
+  }
+
+  function tituloDoPeriodo(r) {
+    if (campoPeriodo.value === 'mes') return 'Como estão suas finanças em ' + nomeDoMes(r.mes);
+    return `Como estão suas finanças de ${dataBR(r.de)} a ${dataBR(r.ate)}`;
+  }
+
   async function carregar() {
-    const r = await api('/api/inicio?mes=' + campoMes.value);
-    document.getElementById('titulo-mes').textContent = 'Como estão suas finanças em ' + nomeDoMes(r.mes);
+    let r;
+    try {
+      r = await api(urlDoResumo());
+      document.getElementById('erro').textContent = '';
+    } catch (e) {
+      document.getElementById('erro').textContent = e.message;
+      return;
+    }
+    document.getElementById('titulo-mes').textContent = tituloDoPeriodo(r);
 
     // Números
     document.getElementById('receitas').textContent = moeda(r.receitas);
@@ -114,7 +158,16 @@
   (async () => {
     await montarTopo('inicio');
     campoMes.value = mesAtual();
+    campoDe.value = mesAtual() + '-01';
+    campoAte.value = hoje();
     campoMes.onchange = carregar;
+    campoDe.onchange = carregar;
+    campoAte.onchange = carregar;
+    campoPeriodo.onchange = () => {
+      document.getElementById('campo-mes').hidden = campoPeriodo.value !== 'mes';
+      document.querySelectorAll('[data-personalizado]').forEach(c => c.hidden = campoPeriodo.value !== 'personalizado');
+      carregar();
+    };
     carregar();
   })();
 </script>

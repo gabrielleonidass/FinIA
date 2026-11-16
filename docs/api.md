@@ -1,6 +1,6 @@
 # API do FinIA
 
-Todas as rotas recebem e devolvem JSON. As rotas marcadas com 🔒 exigem login (cookie `FINIA_SESSAO`).
+As telas enviam os dados como formulário (`campo=valor&campo=valor`) e todas as rotas devolvem JSON. As rotas marcadas com 🔒 exigem login (cookie `FINIA_SESSAO`).
 Em caso de erro a resposta é `{"erro": "mensagem"}` com o código HTTP correspondente (400, 401, 404 ou 409).
 
 ## Login e cadastro

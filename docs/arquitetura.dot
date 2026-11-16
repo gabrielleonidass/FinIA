@@ -1,15 +1,21 @@
 digraph A {
-  graph [rankdir=TB, fontname="Inter", nodesep=0.5, ranksep=0.45, pad=0.3];
-  node [shape=box, style="rounded,filled", fontname="Inter", fontsize=11, color="#94a3b8", fillcolor="#f8fafc", margin="0.25,0.12"];
+  graph [rankdir=TB, fontname="Inter", nodesep=0.4, ranksep=0.5, pad=0.3];
+  node [shape=box, style="rounded,filled", fontname="Inter", fontsize=11, color="#94a3b8", fillcolor="#f8fafc", margin="0.2,0.1"];
   edge [color="#64748b", fontname="Inter", fontsize=9];
-  user [label="Usuário (navegador / celular)", fillcolor="#ccfbf1"];
-  front [label=<<b>Front-end</b> (HTML + CSS + JavaScript + Chart.js)<br/><font point-size="9">Login · Cadastro · Início · Transações · Metas</font>>];
-  ctrl [label=<<b>Controllers</b> (recebem as requisições)<br/><font point-size="9">AuthController · InicioController · TransacaoController · MetaController</font>>, fillcolor="#f0fdfa"];
-  srv [label=<<b>Services</b> (regras de negócio)<br/><font point-size="9">UsuarioService · TransacaoService · CategorizadorService (IA) · MetaService · InicioService</font>>, fillcolor="#f0fdfa"];
-  repo [label=<<b>Repositories</b> (SQL via JDBC)<br/><font point-size="9">UsuarioRepository · CategoriaRepository · TransacaoRepository · MetaRepository</font>>, fillcolor="#f0fdfa"];
-  db [label=<<b>Banco H2</b><br/><font point-size="9">./data/finia_simples.mv.db · 4 tabelas</font>>, shape=cylinder, fillcolor="#e0f2fe"];
+  user [label="Usuário (navegador)", fillcolor="#ccfbf1"];
+  front [label=<<b>Telas</b> (HTML + CSS + JavaScript + Chart.js)<br/><font point-size="9">12 telas: 5 com back-end e 7 protótipos</font>>];
+  web [label=<<b>Web.java</b><br/><font point-size="9">entrega as telas · rotas · login · JSON</font>>, fillcolor="#f0fdfa"];
+  u [label=<<b>Usuarios.java</b><br/><font point-size="9">login e cadastro</font>>, fillcolor="#f0fdfa"];
+  t [label=<<b>Transacoes.java</b><br/><font point-size="9">transações e Início</font>>, fillcolor="#f0fdfa"];
+  m [label=<<b>Metas.java</b><br/><font point-size="9">metas</font>>, fillcolor="#f0fdfa"];
+  ia [label=<<b>Categorizador.java</b><br/><font point-size="9">IA das categorias</font>>, fillcolor="#fef3c7"];
+  banco [label=<<b>Banco.java</b><br/><font point-size="9">SQL via JDBC</font>>, fillcolor="#f0fdfa"];
+  db [label=<<b>Banco H2</b><br/><font point-size="9">./data/finia_simples.mv.db · 5 tabelas</font>>, shape=cylinder, fillcolor="#e0f2fe"];
   user -> front [label=" HTTP"];
-  front -> ctrl [label=" fetch() com JSON"];
-  ctrl -> srv; srv -> repo; repo -> db [label=" JDBC"];
-  subgraph cluster_back { label="Back-end Java 17"; fontname="Inter"; fontsize=10; style="rounded,dashed"; color="#0f766e"; ctrl; srv; repo; }
+  front -> web [label=" fetch(): envia formulário, recebe JSON"];
+  web -> u; web -> t; web -> m;
+  t -> ia;
+  u -> banco; t -> banco; m -> banco; ia -> banco;
+  banco -> db [label=" JDBC"];
+  subgraph cluster_back { label="Back-end Java 17 (7 classes)"; fontname="Inter"; fontsize=10; style="rounded,dashed"; color="#0f766e"; web; u; t; m; ia; banco; }
 }

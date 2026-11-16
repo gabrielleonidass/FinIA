@@ -161,3 +161,11 @@ input[type="month"] { width: auto; }
   body.com-menu { padding-left: 0; background: #fff; }
   .cartao { box-shadow: none; }
 }
+
+/* ---------- ajustes da validação com o cliente ---------- */
+[hidden] { display: none !important; }
+.selo.selo-cinza { background: #e2e8f0; color: var(--texto-suave); }
+.selo.selo-alerta { background: #ffedd5; color: var(--despesa); }
+.selo.selo-erro { background: var(--erro-fundo); color: var(--erro); }
+.filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.filtros .campo { min-width: 150px; }

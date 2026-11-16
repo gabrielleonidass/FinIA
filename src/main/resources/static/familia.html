@@ -11,11 +11,11 @@
   <div class="cabecalho">
     <div>
       <h1>Grupo familiar</h1>
-      <p class="subtitulo">Compartilhe o planejamento da casa e escolha o que cada pessoa pode fazer.</p>
+      <p class="subtitulo">Compartilhe o planejamento da casa e escolha o que cada pessoa pode ver ou editar.</p>
     </div>
   </div>
 
-  <section class="grade grade-2">
+  <section class="grade grade-2 espaco">
     <div class="cartao">
       <h2>Família Souza</h2>
       <ul class="lista-simples" id="membros"></ul>
@@ -25,20 +25,33 @@
       <form id="form" class="formulario">
         <div class="campo"><label for="nome">Nome</label><input id="nome" name="nome" required></div>
         <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" required></div>
-        <div class="campo"><label for="permissao">Permissão</label>
-          <select id="permissao" name="permissao"><option>Só visualizar</option><option>Visualizar e editar</option></select></div>
+        <div class="campo"><label for="permissao">Perfil inicial</label>
+          <select id="permissao" name="permissao"><option>Só visualizar</option><option>Pode editar</option></select></div>
         <button class="botao" type="submit">Enviar convite</button>
+        <p class="dica">A pessoa só entra no grupo depois de aceitar o convite na conta dela.</p>
       </form>
-      <h2 style="margin-top:22px">O que cada permissão pode fazer</h2>
-      <table>
-        <thead><tr><th></th><th>Só visualizar</th><th>Visualizar e editar</th></tr></thead>
+    </div>
+  </section>
+
+  <section class="grade grade-2">
+    <div class="cartao">
+      <h2>Quem pode fazer o quê</h2>
+      <div class="rolagem"><table>
+        <thead><tr><th></th><th>Administrador</th><th>Pode editar</th><th>Só visualizar</th></tr></thead>
         <tbody>
-          <tr><td>Ver resumo e relatórios da casa</td><td>✔</td><td>✔</td></tr>
-          <tr><td>Editar metas e orçamentos da casa</td><td>–</td><td>✔</td></tr>
-          <tr><td>Ver contas pessoais dos outros</td><td>–</td><td>–</td></tr>
-          <tr><td>Convidar ou remover pessoas</td><td>–</td><td>–</td></tr>
+          <tr><td>Ver o resumo da casa</td><td>✔</td><td>✔</td><td>✔</td></tr>
+          <tr><td>Ver as transações pessoais de outro membro</td><td>–</td><td>–</td><td>–</td></tr>
+          <tr><td>Criar ou editar metas da casa</td><td>✔</td><td>✔</td><td>–</td></tr>
+          <tr><td>Criar ou editar orçamentos da casa</td><td>✔</td><td>✔</td><td>–</td></tr>
+          <tr><td>Convidar ou remover membros</td><td>✔</td><td>–</td><td>–</td></tr>
         </tbody>
-      </table>
+      </table></div>
+      <p class="dica">O administrador pode ajustar item por item o que cada membro vê ou edita (botão "Permissões").</p>
+    </div>
+    <div class="cartao">
+      <h2>Minhas contas no grupo</h2>
+      <p class="subtitulo">Você escolhe, conta por conta, o que entra no resumo da casa. Contas não compartilhadas continuam privadas.</p>
+      <ul class="lista-simples" id="minhas-contas"></ul>
     </div>
   </section>
 </main>
@@ -46,10 +59,28 @@
 <script>
   avisoPrototipo('RF12', 'Os membros abaixo são de exemplo e ficam só nesta tela. Só o administrador do grupo convida, remove e muda permissões.');
 
+  const ITENS = [
+    { id: 'resumo', nome: 'Ver o resumo da casa', fixo: true },
+    { id: 'verMetas', nome: 'Ver metas da casa' },
+    { id: 'editarMetas', nome: 'Criar ou editar metas da casa' },
+    { id: 'verOrcamentos', nome: 'Ver orçamentos da casa' },
+    { id: 'editarOrcamentos', nome: 'Criar ou editar orçamentos da casa' },
+    { id: 'relatorios', nome: 'Ver relatórios da casa' },
+  ];
+  const PERFIS = {
+    'Pode editar': { resumo: true, verMetas: true, editarMetas: true, verOrcamentos: true, editarOrcamentos: true, relatorios: true },
+    'Só visualizar': { resumo: true, verMetas: true, editarMetas: false, verOrcamentos: true, editarOrcamentos: false, relatorios: true },
+  };
+
   let membros = [
     { nome: 'Ana Beatriz Souza', email: 'demo@finia.com', permissao: 'Administrador', status: 'Ativo' },
-    { nome: 'Carlos Souza', email: 'carlos@email.com', permissao: 'Visualizar e editar', status: 'Ativo' },
-    { nome: 'Júlia Souza', email: 'julia@email.com', permissao: 'Só visualizar', status: 'Convite pendente' },
+    { nome: 'Carlos Souza', email: 'carlos@email.com', permissao: 'Pode editar', status: 'Ativo', itens: { ...PERFIS['Pode editar'] } },
+    { nome: 'Júlia Souza', email: 'julia@email.com', permissao: 'Só visualizar', status: 'Aguardando aceite', itens: { ...PERFIS['Só visualizar'], relatorios: false } },
+  ];
+  let minhasContas = [
+    { nome: 'Conta do salário (Itaú)', compartilhada: true },
+    { nome: 'Cartão Nubank', compartilhada: true },
+    { nome: 'Reserva pessoal (Caixa)', compartilhada: false },
   ];
 
   function desenhar() {
@@ -58,25 +89,61 @@
         <div><strong>${esc(m.nome)}</strong> ${m.status !== 'Ativo' ? '<span class="selo selo-alerta">' + m.status + '</span>' : ''}<br>
           <small class="subtitulo">${esc(m.email)}</small></div>
         ${m.permissao === 'Administrador' ? '<span class="selo">Administrador</span>' : `
-          <div style="display:flex;gap:6px">
-            <select data-perm="${i}" style="width:auto" aria-label="Permissão de ${esc(m.nome)}">
-              ${['Só visualizar', 'Visualizar e editar'].map(p => `<option ${p === m.permissao ? 'selected' : ''}>${p}</option>`).join('')}
-            </select>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="botao botao-claro botao-pequeno" data-permissoes="${i}">Permissões</button>
+            ${m.status !== 'Ativo' ? `<button class="botao botao-claro botao-pequeno" data-reenviar="${i}">Reenviar convite</button>` : ''}
             <button class="botao botao-perigo botao-pequeno" data-remover="${i}">Remover</button>
           </div>`}
       </li>`).join('');
+    document.getElementById('minhas-contas').innerHTML = minhasContas.map((c, i) => `
+      <li><span>${esc(c.nome)}</span>
+        <label class="chave"><input type="checkbox" data-conta="${i}" ${c.compartilhada ? 'checked' : ''}>
+          ${c.compartilhada ? 'Compartilhada' : 'Privada'}</label></li>`).join('');
   }
 
-  document.getElementById('membros').onchange = e => { if (e.target.dataset.perm) { membros[e.target.dataset.perm].permissao = e.target.value; aviso('Permissão alterada.'); } };
+  /** O administrador escolhe item por item o que o membro vê ou edita. */
+  function editarPermissoes(i) {
+    const m = membros[i];
+    const modal = abrirModal('Permissões de ' + m.nome, `
+      <div class="campo"><label for="perfil">Perfil</label>
+        <select id="perfil">${Object.keys(PERFIS).map(p => `<option ${p === m.permissao ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+      <ul class="lista-simples">${ITENS.map(it => `
+        <li><label class="chave"><input type="checkbox" data-item="${it.id}" ${m.itens[it.id] ? 'checked' : ''} ${it.fixo ? 'disabled' : ''}> ${it.nome}</label></li>`).join('')}
+        <li><span class="subtitulo">As transações pessoais dos outros membros nunca ficam visíveis.</span></li>
+      </ul>
+      <button class="botao" id="salvar-perm">Salvar permissões</button>`);
+    modal.querySelector('#perfil').onchange = e => {
+      Object.entries(PERFIS[e.target.value]).forEach(([k, v]) => { const c = modal.querySelector(`[data-item="${k}"]`); if (c) c.checked = v; });
+    };
+    modal.querySelector('#salvar-perm').onclick = () => {
+      m.permissao = modal.querySelector('#perfil').value;
+      modal.querySelectorAll('[data-item]').forEach(c => m.itens[c.dataset.item] = c.checked);
+      if (m.itens.editarMetas) m.itens.verMetas = true;
+      if (m.itens.editarOrcamentos) m.itens.verOrcamentos = true;
+      modal.remove();
+      aviso('Permissões de ' + m.nome + ' atualizadas.');
+      desenhar();
+    };
+  }
+
   document.getElementById('membros').onclick = e => {
-    if (e.target.dataset.remover && confirm('Remover esta pessoa do grupo?')) { membros.splice(e.target.dataset.remover, 1); desenhar(); }
+    const d = e.target.dataset;
+    if (d.permissoes) editarPermissoes(Number(d.permissoes));
+    if (d.reenviar) aviso('Convite reenviado para ' + membros[d.reenviar].email + '.');
+    if (d.remover && confirm('Remover esta pessoa do grupo?')) { membros.splice(d.remover, 1); desenhar(); }
+  };
+  document.getElementById('minhas-contas').onchange = e => {
+    const c = minhasContas[e.target.dataset.conta];
+    c.compartilhada = e.target.checked;
+    aviso(c.compartilhada ? c.nome + ' agora aparece no resumo da casa.' : c.nome + ' agora é privada.');
+    desenhar();
   };
   document.getElementById('form').onsubmit = e => {
     e.preventDefault();
     const d = dadosDoForm(e.target);
-    membros.push({ ...d, status: 'Convite pendente' });
+    membros.push({ nome: d.nome, email: d.email, permissao: d.permissao, status: 'Aguardando aceite', itens: { ...PERFIS[d.permissao] } });
     e.target.reset();
-    aviso('Convite enviado para ' + d.email + '.');
+    aviso('Convite enviado para ' + d.email + '. A pessoa precisa aceitar para entrar no grupo.');
     desenhar();
   };
 

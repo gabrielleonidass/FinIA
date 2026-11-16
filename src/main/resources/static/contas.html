@@ -16,12 +16,22 @@
   </div>
 
   <section class="grade grade-3 espaco">
-    <div class="cartao numero"><small>Saldo somado das contas</small><strong id="total">-</strong></div>
+    <div class="cartao numero"><small>Saldo total (soma das contas)</small><strong id="total">-</strong></div>
     <div class="cartao numero"><small>Contas ativas</small><strong id="ativas">-</strong></div>
     <div class="cartao numero"><small>Faturas em aberto</small><strong class="laranja" id="faturas">-</strong></div>
   </section>
 
   <section class="grade grade-2 espaco" id="lista"></section>
+
+  <section class="cartao espaco">
+    <h2>Como funciona</h2>
+    <ul class="lista-simples">
+      <li><span><strong>Desativar:</strong> pausa a sincronização da conta. O cadastro e o histórico continuam, e dá para reativar depois.</span></li>
+      <li><span><strong>Remover:</strong> tira a conta da lista e para as sincronizações. As transações já registradas continuam no histórico.</span></li>
+      <li><span><strong>Pagamento da fatura:</strong> os gastos do cartão já entram um a um como despesa. Por isso o pagamento da
+        fatura é tratado como <strong>transferência</strong> entre contas e não conta como despesa de novo.</span></li>
+    </ul>
+  </section>
 
   <section class="cartao">
     <h2>Nova conta ou cartão</h2>
@@ -62,20 +72,30 @@
         </div>
         <div class="meta-acoes">
           <button class="botao botao-claro botao-pequeno" data-renomear="${i}">Renomear</button>
-          <button class="botao ${c.ativa ? 'botao-perigo' : 'botao-claro'} botao-pequeno" data-ativar="${i}">${c.ativa ? 'Desativar' : 'Reativar'}</button>
+          <button class="botao botao-claro botao-pequeno" data-ativar="${i}">${c.ativa ? 'Desativar' : 'Reativar'}</button>
+          ${c.tipo === 'Cartão de crédito' && c.ativa && c.saldo < 0 ? `<button class="botao botao-claro botao-pequeno" data-pagar="${i}">Pagar fatura</button>` : ''}
+          <button class="botao botao-perigo botao-pequeno" data-remover="${i}">Remover</button>
         </div>
       </div>`).join('');
   }
 
   document.getElementById('lista').onclick = e => {
-    const i = e.target.dataset.renomear ?? e.target.dataset.ativar;
+    const d = e.target.dataset;
+    const i = d.renomear ?? d.ativar ?? d.remover ?? d.pagar;
     if (i === undefined) return;
-    if (e.target.dataset.renomear !== undefined) {
+    if (d.remover !== undefined) {
+      if (!confirm(`Remover "${contas[i].apelido}"? As sincronizações param, mas as transações já registradas continuam no histórico.`)) return;
+      contas.splice(i, 1);
+      aviso('Conta removida. O histórico das transações foi mantido.');
+    } else if (d.pagar !== undefined) {
+      aviso(`Pagamento de ${moeda(-contas[i].saldo)} registrado como transferência (não conta como despesa).`);
+      contas[i].saldo = 0;
+    } else if (d.renomear !== undefined) {
       const novo = prompt('Novo apelido:', contas[i].apelido);
       if (novo) contas[i].apelido = novo.trim();
     } else {
       contas[i].ativa = !contas[i].ativa;
-      aviso(contas[i].ativa ? 'Conta reativada.' : 'Conta desativada. O histórico continua guardado.');
+      aviso(contas[i].ativa ? 'Conta reativada. A sincronização voltou.' : 'Conta desativada: sincronização pausada. O histórico continua guardado.');
     }
     desenhar();
   };
