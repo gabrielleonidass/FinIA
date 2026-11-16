@@ -4,7 +4,7 @@ import br.ucsal.finia.infra.Json;
 
 import java.util.Map;
 
-/** Categoria de uma transação (ex.: Alimentação, Transporte, Salário). */
+/** categoria de uma transação */
 public record Categoria(Long id, String nome, TipoTransacao tipo, String cor) implements Json.JsonConvertivel {
 
     @Override

@@ -17,17 +17,6 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 
-/**
- * FinIA - controle de finanças pessoais com categorização automática.
- *
- * Como o sistema está organizado (MVC em camadas):
- *   Tela (HTML/JS)  ->  Controller (recebe a requisição)
- *                   ->  Service (regras de negócio)
- *                   ->  Repository (SQL)  ->  Banco H2
- *
- * Para rodar: mvn package  e depois  java -jar target/finia.jar
- * Depois abra http://localhost:8080
- */
 public class FinIaApplication {
 
     public static void main(String[] args) throws Exception {
