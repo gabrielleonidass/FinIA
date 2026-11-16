@@ -6,7 +6,7 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 
-/** Telas Transações (RF03, RF04) e Início (RF07). */
+/** Tudo da tela de Transações (RF03 e RF04) e o resumo da tela Início (RF07). */
 public class Transacoes {
 
     static void rotas(Web web) {
@@ -48,13 +48,11 @@ public class Transacoes {
         });
     }
 
-    // ================= transações =================
-
     private static final String SELECT = """
             SELECT t.*, c.nome AS cat_nome, c.tipo AS cat_tipo, c.cor AS cat_cor
             FROM transacao t JOIN categoria c ON c.id = t.categoria_id""";
 
-    /** Cadastra uma transação. Sem categoria escolhida, a IA escolhe. */
+    /** Salva a transação. Se o usuário não escolheu a categoria, a IA escolhe. */
     static Map<String, Object> registrar(long usuarioId, String descricao, BigDecimal valor, String tipo,
                                          LocalDate data, Long categoriaId) {
         if (descricao == null) throw new Web.Erro(400, "Informe a descrição.");
@@ -77,7 +75,7 @@ public class Transacoes {
         return buscar(usuarioId, id);
     }
 
-    /** O usuário corrige a categoria: deixa de ser automática e perde a confiança da IA. */
+    /** O usuário trocou a categoria: agora a escolha é dele, não da IA. */
     static Map<String, Object> trocarCategoria(long usuarioId, long id, Long categoriaId) {
         Map<String, Object> t = buscar(usuarioId, id);
         if (t == null) throw new Web.Erro(404, "Transação não encontrada.");
@@ -98,7 +96,7 @@ public class Transacoes {
         return linha == null ? null : paraTela(linha);
     }
 
-    /** Arruma a linha do banco no formato que a tela usa. */
+    /** Arruma a linha do banco do jeito que a tela espera. */
     private static Map<String, Object> paraTela(Map<String, Object> t) {
         boolean automatica = (Boolean) t.get("categoria_automatica");
         Integer confianca = (Integer) t.get("confianca");
@@ -116,21 +114,20 @@ public class Transacoes {
         if (!c.get("tipo").equals(tipo)) throw new Web.Erro(400, "Essa categoria não serve para esse tipo de transação.");
     }
 
-    // ================= RF04: regra depois de 3 correções seguidas =================
+    // ---------- RF04: regra depois de 3 correções seguidas ----------
 
-    /** Devolve a transação e, se for a 3ª correção seguida do mesmo estabelecimento, a pergunta "criar regra?". */
     private static Map<String, Object> comPerguntaDeRegra(long usuarioId, Map<String, Object> t) {
         t.put("sugestaoRegra", sugestaoDeRegra(usuarioId, t));
         return t;
     }
 
-    /** A pergunta só aparece se as 3 últimas transações do estabelecimento foram corrigidas para a mesma categoria. */
+    /** Só pergunta "quer criar uma regra?" se as 3 últimas compras do lugar foram corrigidas pra mesma categoria. */
     @SuppressWarnings("unchecked")
     static Map<String, Object> sugestaoDeRegra(long usuarioId, Map<String, Object> t) {
         if ((Boolean) t.get("categoriaAutomatica")) return null;
         String padrao = Categorizador.padraoDoEstabelecimento((String) t.get("descricao"));
         if (Banco.linha("SELECT id FROM regra_categoria WHERE usuario_id = ? AND padrao = ?", usuarioId, padrao) != null)
-            return null; // já respondeu (sim ou não)
+            return null; // já perguntou antes, não precisa de novo
 
         Map<String, Object> categoria = (Map<String, Object>) t.get("categoria");
         List<Map<String, Object>> ultimas3 = Banco.linhas(
@@ -143,7 +140,7 @@ public class Transacoes {
         return tresCorrecoesIguais ? Web.obj("padrao", padrao, "categoria", categoria, "correcoes", 3) : null;
     }
 
-    /** Aceitar cria a regra; recusar fica guardado para não perguntar de novo. */
+    /** Se aceitar, vira regra. Se recusar, a gente guarda o "não" pra não ficar perguntando. */
     static void responderRegra(long usuarioId, String padrao, Long categoriaId, boolean aceitar) {
         if (padrao == null || categoriaId == null) throw new Web.Erro(400, "Informe o estabelecimento e a categoria.");
         padrao = Categorizador.padraoDoEstabelecimento(padrao);
@@ -152,9 +149,9 @@ public class Transacoes {
                 usuarioId, padrao, categoriaId, aceitar);
     }
 
-    // ================= RF07: resumo da tela Início =================
+    // ---------- RF07: resumo da tela Início ----------
 
-    /** Mês (padrão), últimos 3 meses, últimos 12 meses ou período personalizado. */
+    /** O filtro de período: o mês (padrão), os últimos 3 ou 12 meses, ou datas que o usuário escolhe. */
     private static Map<String, Object> resumoDoPeriodo(Web.Pedido p) {
         YearMonth atual = YearMonth.now();
         String periodo = p.texto("periodo") == null ? "mes" : p.texto("periodo");
@@ -174,7 +171,7 @@ public class Transacoes {
         }
     }
 
-    /** Receitas, despesas, saldo, gastos por categoria, últimas 5 transações e metas. */
+    /** Junta tudo que aparece no Início: entradas, saídas, saldo, gráfico, últimas transações e metas. */
     static Map<String, Object> resumo(long usuarioId, LocalDate de, LocalDate ate, String rotulo) {
         String soma = "SELECT SUM(valor) AS total FROM transacao WHERE usuario_id = ? AND tipo = ? AND data BETWEEN ? AND ?";
         BigDecimal receitas = Banco.somar(soma, usuarioId, "RECEITA", de, ate);
@@ -191,7 +188,6 @@ public class Transacoes {
                 "metas", Metas.listar(usuarioId));
     }
 
-    /** "2026-11" -> novembro de 2026 (vazio = mês atual). */
     private static YearMonth mes(String texto) {
         try {
             return texto == null ? YearMonth.now() : YearMonth.parse(texto);

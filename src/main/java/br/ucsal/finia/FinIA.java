@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 
-/** Início do sistema: cria o banco, coloca os dados de exemplo, registra as rotas e liga o servidor. */
+/** É aqui que o sistema começa: prepara o banco, cria os dados de exemplo e liga o servidor. */
 public class FinIA {
 
     public static void main(String[] args) throws Exception {
@@ -37,12 +37,12 @@ public class FinIA {
         }
     }
 
-    /** Usuário de demonstração com 2 meses de transações e 3 metas (só na primeira vez). */
+    /** Cria a usuária de teste com uns 2 meses de transações e 3 metas (só na primeira vez que roda). */
     static void criarUsuarioDemo() {
         if (Banco.linha("SELECT id FROM usuario WHERE email = 'demo@finia.com'") != null) return;
         long id = (Long) Usuarios.cadastrar("Ana Beatriz Souza", "demo@finia.com", "52998224725", "Demo@1234").get("id");
 
-        // "meses atrás;dia;descrição;valor;tipo" - a IA escolhe a categoria de cada uma
+        // Formato: "meses atrás;dia;descrição;valor;tipo". A categoria quem escolhe é a IA.
         String[] transacoes = {
                 "1;5;Salário empresa;4500.00;RECEITA", "1;6;Aluguel apartamento;1200.00;DESPESA",
                 "1;8;Supermercado Assaí;420.30;DESPESA", "1;10;Conta de luz Coelba;172.80;DESPESA",

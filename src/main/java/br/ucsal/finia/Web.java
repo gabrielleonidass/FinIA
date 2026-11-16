@@ -16,15 +16,13 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Servidor web do FinIA (usa o HttpServer que já vem no Java). Ele:
- *  1. entrega as telas (pasta resources/static);
- *  2. chama a ação certa para cada rota da API (ex.: GET /api/metas);
- *  3. confere o login (sessão guardada em cookie, expira em 2 horas sem uso);
- *  4. devolve a resposta em JSON, ou {"erro": "..."} quando algo dá errado.
+ * O servidor do FinIA (usa o servidor que já vem no próprio Java).
+ * Ele manda as telas pro navegador, chama a rota certa da API, confere se a pessoa está logada
+ * e devolve a resposta em JSON. Se der erro, devolve {"erro": "..."} pra tela mostrar.
  */
 public class Web {
 
-    /** Erro que vira resposta para a tela (400 = dado inválido, 401 = sem login, 404 = não encontrado...). */
+    /** Erro que vai direto pra tela (400 = dado errado, 401 = não está logado, 404 = não achou). */
     public static class Erro extends RuntimeException {
         final int status;
 
@@ -34,7 +32,6 @@ public class Web {
         }
     }
 
-    /** O que uma rota faz: recebe o pedido e devolve o que vai para a tela. */
     public interface Acao {
         Object executar(Pedido pedido) throws Exception;
     }
@@ -53,7 +50,7 @@ public class Web {
     public void put(String caminho, Acao acao) { rotas.add(new Rota("PUT", caminho, acao, false)); }
     public void delete(String caminho, Acao acao) { rotas.add(new Rota("DELETE", caminho, acao, false)); }
 
-    /** Rota que funciona sem login (cadastro, login e sair). */
+    /** Rota que funciona sem estar logado (cadastro, login e sair). */
     public void publica(String metodo, String caminho, Acao acao) {
         rotas.add(new Rota(metodo, caminho, acao, true));
     }
@@ -64,9 +61,7 @@ public class Web {
         servidor.start();
     }
 
-    // ================= pedido da tela =================
-
-    /** Um pedido vindo da tela: os campos enviados, o {id} do caminho e quem está logado. */
+    /** O que a tela mandou: os campos, o {id} do caminho e quem está logado. */
     public class Pedido {
         private final HttpExchange troca;
         private final Map<String, String> campos = new HashMap<>();
@@ -76,8 +71,8 @@ public class Web {
         Pedido(HttpExchange troca, String id) throws IOException {
             this.troca = troca;
             this.id = id;
-            lerCampos(troca.getRequestURI().getRawQuery());                                       // ?mes=2026-11
-            lerCampos(new String(troca.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); // formulário
+            lerCampos(troca.getRequestURI().getRawQuery());                                       // o que vem na URL
+            lerCampos(new String(troca.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); // o que vem do formulário
         }
 
         public long usuarioId() {
@@ -92,7 +87,6 @@ public class Web {
             }
         }
 
-        /** Texto enviado pela tela, ou null se veio vazio. */
         public String texto(String campo) {
             String v = campos.get(campo);
             return v == null || v.isBlank() ? null : v.trim();
@@ -150,7 +144,7 @@ public class Web {
             return null;
         }
 
-        /** Lê "a=1&b=2" (formato em que o navegador envia formulários). */
+        /** O navegador manda os campos assim: "nome=Ana&valor=10". Aqui a gente separa. */
         private void lerCampos(String texto) {
             if (texto == null || texto.isBlank()) return;
             for (String par : texto.split("&")) {
@@ -160,8 +154,6 @@ public class Web {
             }
         }
     }
-
-    // ================= atendimento =================
 
     private void atender(HttpExchange troca) throws IOException {
         String caminho = troca.getRequestURI().getPath();
@@ -202,7 +194,7 @@ public class Web {
         return s.usuarioId();
     }
 
-    /** Compara "/api/metas/{id}" com "/api/metas/7": devolve "7", "" se não tem id, ou null se não combina. */
+    /** Vê se o caminho bate com a rota. Ex.: "/api/metas/{id}" com "/api/metas/7" devolve o "7". */
     private static String casar(String modelo, String caminho) {
         String[] m = modelo.split("/"), c = caminho.split("/");
         if (m.length != c.length) return null;
@@ -214,9 +206,9 @@ public class Web {
         return id;
     }
 
-    /** Entrega os arquivos das telas: "/" -> index.html, "/metas" -> metas.html. */
+    /** Manda a tela certa: "/" é o login, "/metas" é o metas.html, e assim por diante. */
     private void entregarTela(HttpExchange troca, String caminho) throws IOException {
-        if (caminho.equals("/favicon.ico")) {   // a aba do navegador pede um ícone; não temos
+        if (caminho.equals("/favicon.ico")) {   // o navegador pede um ícone pra aba, mas a gente não tem
             troca.sendResponseHeaders(204, -1);
             return;
         }
@@ -240,16 +232,16 @@ public class Web {
         troca.getResponseBody().write(corpo);
     }
 
-    // ================= JSON =================
+    // ---------- JSON ----------
 
-    /** Monta um mapa a partir de pares: obj("nome", "Ana", "idade", 20). */
+    /** Atalho pra montar um mapa: obj("nome", "Ana", "idade", 20). */
     public static Map<String, Object> obj(Object... chavesEValores) {
         Map<String, Object> m = new LinkedHashMap<>();
         for (int i = 0; i < chavesEValores.length; i += 2) m.put((String) chavesEValores[i], chavesEValores[i + 1]);
         return m;
     }
 
-    /** Transforma mapas, listas, números e textos em JSON. */
+    /** Transforma mapas, listas, números e textos em JSON pra mandar pra tela. */
     public static String json(Object o) {
         if (o == null) return "null";
         if (o instanceof BigDecimal b) return b.toPlainString();
@@ -264,7 +256,7 @@ public class Web {
             lista.forEach(item -> sj.add(json(item)));
             return sj.toString();
         }
-        return texto(o); // textos e datas
+        return texto(o);
     }
 
     private static String texto(Object o) {

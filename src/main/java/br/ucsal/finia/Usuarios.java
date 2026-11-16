@@ -7,7 +7,7 @@ import java.security.SecureRandom;
 import java.util.HexFormat;
 import java.util.Map;
 
-/** Telas de Login e Cadastro (RF01). */
+/** Tudo do Login e do Cadastro (RF01). */
 public class Usuarios {
 
     static void rotas(Web web) {
@@ -59,17 +59,17 @@ public class Usuarios {
         return buscar((Long) u.get("id"));
     }
 
-    /** Dados que vão para a tela (sem a senha). */
+    /** Só o que pode ir pra tela. A senha nunca sai daqui. */
     static Map<String, Object> buscar(long id) {
         return Banco.linha("SELECT id, nome, email, cpf FROM usuario WHERE id = ?", id);
     }
 
-    /** Mínimo 8 caracteres, com letra maiúscula, número e símbolo. */
+    /** Senha forte: 8 caracteres ou mais, com maiúscula, número e símbolo. */
     static boolean senhaForte(String senha) {
         return senha != null && senha.matches("^(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}$");
     }
 
-    /** Confere os 2 dígitos verificadores do CPF. */
+    /** Faz a conta dos 2 últimos dígitos do CPF pra ver se ele é de verdade. */
     static boolean cpfValido(String cpf) {
         String c = cpf == null ? "" : cpf.replaceAll("\\D", "");
         if (c.length() != 11 || c.chars().distinct().count() == 1) return false; // ex.: 111.111.111-11
@@ -81,7 +81,7 @@ public class Usuarios {
         return true;
     }
 
-    /** A senha vira um hash PBKDF2 (com salt): nem quem abrir o banco descobre a senha. */
+    /** Embaralha a senha (PBKDF2 com salt). Nem quem abrir o banco consegue ver a senha. */
     private static String hash(String senha, String saltHex) {
         try {
             PBEKeySpec spec = new PBEKeySpec(senha.toCharArray(), HexFormat.of().parseHex(saltHex), 120_000, 256);

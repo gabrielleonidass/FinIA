@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
-/** Tela Metas (RF05). */
+/** Tudo da tela de Metas (RF05). */
 public class Metas {
 
     static void rotas(Web web) {
@@ -22,7 +22,7 @@ public class Metas {
         });
     }
 
-    /** taxaRendimento: rendimento esperado em % ao mês, digitado pelo usuário (pode ser null). */
+    /** A taxa de rendimento é opcional: o usuário digita quanto espera render por mês. */
     static Map<String, Object> criar(long usuarioId, String nome, BigDecimal valorAlvo, LocalDate prazo,
                                      BigDecimal taxaRendimento) {
         if (nome == null) throw new Web.Erro(400, "Dê um nome para a meta.");
@@ -37,7 +37,6 @@ public class Metas {
         return buscar(usuarioId, id);
     }
 
-    /** Soma um valor ao que já foi guardado. */
     static Map<String, Object> guardar(long usuarioId, long id, BigDecimal valor) {
         if (valor == null || valor.signum() <= 0) throw new Web.Erro(400, "Informe um valor maior que zero.");
         if (Banco.executar("UPDATE meta SET valor_guardado = valor_guardado + ? WHERE id = ? AND usuario_id = ?",
@@ -54,7 +53,7 @@ public class Metas {
         return paraTela(Banco.linha("SELECT * FROM meta WHERE usuario_id = ? AND id = ?", usuarioId, id));
     }
 
-    /** A linha do banco mais os cálculos que a tela mostra. */
+    /** Pega a meta do banco e já junta as contas que a tela mostra. */
     private static Map<String, Object> paraTela(Map<String, Object> m) {
         BigDecimal alvo = (BigDecimal) m.get("valor_alvo"), guardado = (BigDecimal) m.get("valor_guardado");
         BigDecimal taxa = (BigDecimal) m.get("taxa_rendimento");
@@ -66,21 +65,19 @@ public class Metas {
                 "taxaRendimento", taxa);
     }
 
-    /** Percentual guardado, de 0 a 100. */
     static int percentual(BigDecimal alvo, BigDecimal guardado) {
         return Math.min(guardado.multiply(BigDecimal.valueOf(100)).divide(alvo, 0, RoundingMode.DOWN).intValue(), 100);
     }
 
-    /** Meses até o prazo (no mínimo 1). */
+    /** Quantos meses faltam (pelo menos 1, pra não dividir por zero). */
     static long mesesRestantes(LocalDate prazo, LocalDate hoje) {
         return Math.max(ChronoUnit.MONTHS.between(hoje.withDayOfMonth(1), prazo.withDayOfMonth(1)), 1);
     }
 
     /**
-     * Quanto guardar por mês para chegar no valor até o prazo.
-     * Sem rendimento: o que falta dividido pelos meses.
-     * Com rendimento i ao mês por n meses (o guardado e os depósitos também rendem):
-     * parcela = (alvo - guardado x (1+i)^n) x i / ((1+i)^n - 1)
+     * Quanto precisa guardar por mês pra bater a meta no prazo.
+     * Sem rendimento é só dividir o que falta pelos meses. Com rendimento o dinheiro também cresce,
+     * então a parcela fica menor (fórmula de juros compostos).
      */
     static BigDecimal valorPorMes(BigDecimal alvo, BigDecimal guardado, LocalDate prazo, BigDecimal taxa, LocalDate hoje) {
         long n = mesesRestantes(prazo, hoje);

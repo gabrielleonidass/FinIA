@@ -5,16 +5,10 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * A "IA" do FinIA: escolhe a categoria pela descrição e diz o quanto confia nela (RF03 e RF04).
- *
- *  1. Regra do usuário: se ele aceitou criar uma regra para esse estabelecimento, usa a regra (98%).
- *  2. Palavras-chave: "UBER" -> Transporte, "IFOOD" -> Alimentação...
- *     Se várias combinam, vence a que aparece primeiro; empatando, a mais longa ("MERCADO LIVRE" > "MERCADO").
- *     90% se só uma categoria combinou; 60% se combinou com categorias diferentes.
- *  3. Nada combinou: "Outros" ou "Outras receitas" (30%).
- *
- * Abaixo do limite mínimo (70% por padrão) a transação fica marcada para revisão.
- * O limite pode ser mudado sem mexer no código: variável de ambiente FINIA_LIMIAR_CONFIANCA.
+ * A "IA" do FinIA: olha a descrição e chuta a categoria, dizendo o quanto tem certeza.
+ * Primeiro vê se o usuário criou uma regra pra esse lugar; se não, procura palavras conhecidas
+ * ("UBER" é Transporte, "IFOOD" é Alimentação...). Se não achar nada, vai pra "Outros".
+ * Abaixo de 70% de certeza, a tela pede pro usuário conferir.
  */
 public class Categorizador {
 
@@ -42,7 +36,7 @@ public class Categorizador {
         PALAVRAS.put("Renda extra", List.of("FREELA", "FREELANCE", "VENDA", "BICO", "PIX RECEBIDO", "RENDIMENTO"));
     }
 
-    /** Resposta da IA: a categoria (linha da tabela categoria), o motivo e a confiança (0 a 100). */
+    /** O que a IA responde: a categoria, o porquê e a certeza (de 0 a 100). */
     record Sugestao(Map<String, Object> categoria, String motivo, int confianca) {
         boolean revisar() {
             return confianca < LIMIAR_CONFIANCA;
@@ -50,14 +44,15 @@ public class Categorizador {
     }
 
     static Sugestao sugerir(long usuarioId, String descricao, String tipo) {
-        // 1) Regra criada pelo usuário
+        // 1) O usuário já criou uma regra pra esse lugar? Então é ela.
         String padrao = padraoDoEstabelecimento(descricao);
         Map<String, Object> daRegra = Banco.linha("""
                 SELECT c.* FROM regra_categoria r JOIN categoria c ON c.id = r.categoria_id
                 WHERE r.usuario_id = ? AND r.padrao = ? AND r.aceita = TRUE AND c.tipo = ?""", usuarioId, padrao, tipo);
         if (daRegra != null) return new Sugestao(daRegra, "Regra criada por você para \"" + padrao + "\".", 98);
 
-        // 2) Palavras-chave
+        // 2) Procura as palavras conhecidas. Vence a que aparece primeiro; se empatar, a mais longa
+        //    ("MERCADO LIVRE" ganha de "MERCADO"). Se bater com mais de uma categoria, a certeza cai.
         String texto = " " + normalizar(descricao) + " ";
         String melhorCategoria = null, melhorPalavra = "";
         int melhorPosicao = Integer.MAX_VALUE;
@@ -81,7 +76,7 @@ public class Categorizador {
             return new Sugestao(categoria(melhorCategoria, tipo), motivo, 90);
         }
 
-        // 3) Nada reconhecido
+        // 3) Não achou nada: vai pra "Outros" com pouca certeza
         String nome = tipo.equals("RECEITA") ? "Outras receitas" : "Outros";
         return new Sugestao(categoria(nome, tipo), "Nenhuma palavra conhecida. Confira a categoria.", 30);
     }
@@ -90,10 +85,7 @@ public class Categorizador {
         return Banco.linha("SELECT * FROM categoria WHERE nome = ? AND tipo = ?", nome, tipo);
     }
 
-    /**
-     * Identifica o estabelecimento mesmo que a descrição mude:
-     * "UBER *TRIP 123" e "Uber *trip 456" viram "UBER TRIP" (tira acentos, pontuação e números).
-     */
+    /** Descobre o "lugar" da compra, ignorando os números: "UBER *TRIP 123" e "Uber *trip 456" viram "UBER TRIP". */
     static String padraoDoEstabelecimento(String descricao) {
         String normal = normalizar(descricao);
         String semNumeros = Arrays.stream(normal.split(" "))
@@ -102,7 +94,7 @@ public class Categorizador {
         return semNumeros.isBlank() ? normal : semNumeros;
     }
 
-    /** "iFood*Pedido" -> "IFOOD PEDIDO" (maiúsculas, sem acento e sem pontuação). */
+    /** Deixa tudo em maiúscula, sem acento e sem pontuação: "iFood*Pedido" vira "IFOOD PEDIDO". */
     private static String normalizar(String s) {
         String semAcento = Normalizer.normalize(s == null ? "" : s, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
         return semAcento.toUpperCase().replaceAll("[^A-Z0-9]+", " ").trim();

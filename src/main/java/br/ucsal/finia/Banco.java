@@ -11,15 +11,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Banco de dados H2 (arquivo na pasta ./data), acessado com JDBC.
- * Cada linha do resultado vira um Map: coluna -> valor.
- * Todo SQL usa "?" (PreparedStatement), o que evita SQL injection.
+ * Tudo que fala com o banco passa por aqui.
+ * Cada linha que volta do SELECT vira um Map.
+ * Os valores sempre vão pelos "?", assim ninguém consegue fazer SQL injection.
  */
 public class Banco {
 
     private static String url = "jdbc:h2:file:./data/finia_simples;MODE=MySQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1";
 
-    /** Usado nos testes: troca o arquivo por um banco em memória. */
+    /** Os testes usam isso pra rodar num banco em memória, sem mexer no arquivo. */
     static void usar(String novaUrl) {
         url = novaUrl;
     }
@@ -33,7 +33,7 @@ public class Banco {
         return DriverManager.getConnection(url, "sa", "");
     }
 
-    /** Roda o schema.sql: cria as tabelas que ainda não existem. */
+    /** Roda o schema.sql e cria as tabelas que ainda não existem. */
     static void criarTabelas() {
         try (InputStream in = Banco.class.getResourceAsStream("/schema.sql");
              Connection c = conectar(); Statement st = c.createStatement()) {
@@ -46,7 +46,6 @@ public class Banco {
         }
     }
 
-    /** SELECT: devolve todas as linhas. */
     static List<Map<String, Object>> linhas(String sql, Object... parametros) {
         try (Connection c = conectar(); PreparedStatement ps = preparar(c, sql, parametros);
              ResultSet rs = ps.executeQuery()) {
@@ -66,19 +65,19 @@ public class Banco {
         }
     }
 
-    /** SELECT de uma linha só (ou null se não achar). */
+    /** Igual ao linhas(), mas pega só a primeira (ou null se não achar nada). */
     static Map<String, Object> linha(String sql, Object... parametros) {
         List<Map<String, Object>> l = linhas(sql, parametros);
         return l.isEmpty() ? null : l.get(0);
     }
 
-    /** SELECT SUM(...) AS total: sem linhas o SQL devolve NULL, então vira zero. */
+    /** Se não tiver nenhuma linha, o SUM do SQL volta NULL, então a gente troca por zero. */
     static BigDecimal somar(String sql, Object... parametros) {
         Object total = linha(sql, parametros).get("total");
         return total == null ? BigDecimal.ZERO : (BigDecimal) total;
     }
 
-    /** INSERT: devolve o id gerado. */
+    /** Faz o INSERT e devolve o id que o banco criou. */
     static long inserir(String sql, Object... parametros) {
         try (Connection c = conectar();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -91,7 +90,6 @@ public class Banco {
         }
     }
 
-    /** UPDATE ou DELETE: devolve quantas linhas mudaram. */
     static int executar(String sql, Object... parametros) {
         try (Connection c = conectar(); PreparedStatement ps = preparar(c, sql, parametros)) {
             return ps.executeUpdate();
